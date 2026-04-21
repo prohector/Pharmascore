@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>PharmaScore Sustainability Assessment</title>
+	<!-- External Stylesheet -->
+	<link rel="stylesheet" href="assets/style.css">
+
+	   <script type="module">
+	   import { lookupChemicalPrice } from './api.js';
+	   window.lookupChemicalPrice = lookupChemicalPrice;
+	   </script>
+
+</head>
+<body>
+	<!--
+	===================
+	NOTE FOR DEVELOPERS:
+	This app loads its questionnaire from config/questions.csv using fetch().
+	This will NOT work if you open index.html directly in your browser (file:// URL) due to browser security restrictions.
+	You MUST run a local server (e.g. VS Code Live Server extension, Python http.server, etc.) for the fetch to succeed.
+	===================
+	-->
+
+	<!-- Header -->
+	<header>
+		<h1>Pharmaceutical Lab Sustainability Assessment</h1>
+		<p>Academic Tool for Evaluating Lab Practices</p>
+	</header>
+	<!-- Loading/Error UI -->
+	<div id="loading-message">Loading questionnaire...</div>
+	<div id="error-message" class="hidden"></div>
+
+	<!-- Progress Indicator -->
+	<div id="progress-indicator">
+		<div class="progress-bar-container">
+			<div id="progress-bar" style="width: 25%"></div>
+		</div>
+		<span id="progress-label">Section 1 of 4: Solvents &amp; Energy</span>
+	</div>
+
+	<!-- Tab Navigation -->
+	<nav>
+		<div id="tab-nav">
+			<!-- Tabs will be rendered here -->
+		</div>
+	</nav>
+
+	<!-- Main Form Section -->
+	<main>
+		<h2 id="section-title">Solvents &amp; Energy</h2>
+		<form id="assessment-form" autocomplete="off">
+			<!-- Questions will be rendered here -->
+		</form>
+		<div class="form-buttons">
+			<button id="prev-btn" type="button" class="btn-prev hidden">Previous</button>
+			<button id="next-btn" type="button" class="btn-next">Next</button>
+			<button id="submit-btn" type="button" class="btn-submit hidden" disabled>Submit</button>
+			<button id="debug-autofill-btn" type="button" class="btn-debug">Debug: Autofill</button>
+		</div>
+	</main>
+
+	<!-- Results Section -->
+	   <section id="results-section" class="hidden">
+		   <h3>Assessment Results</h3>
+		  <div id="results-graphic"></div>
+		  <div id="debug-scores"></div>
+		   <button id="retake-btn" type="button" class="btn-retake">Retake Assessment</button>
+		</section>
+	<!-- =================== CONFIG: Question Definitions =================== -->
+	<script>
+	let QUESTION_AREAS = [];
+	</script>
+
+	<!-- =================== RENDERER: Form Rendering =================== -->
+	<script>
+	let currentTab = 0;
+	// Store answers by question id
+	const ANSWERS = {};
+	
+	// Retake Assessment button logic
+	document.addEventListener('DOMContentLoaded', () => {
+	    const resultsSection = document.getElementById('results-section');
+	    const retakeBtn = document.getElementById('retake-btn');
+	    if (retakeBtn) {
+	        retakeBtn.addEventListener('click', function() {
+	            // Hide results
+	            resultsSection.classList.add('hidden');
+	            // Clear answers
+	            for (const key in ANSWERS) delete ANSWERS[key];
+	            // Reset tab
+	            currentTab = 0;
+	            // Show main form
+	            document.querySelector('main').classList.remove('hidden');
+	            // Re-render everything
+	            renderTabs();
+	            renderQuestions();
+	            updateSectionTitle();
+	            updateProgress();
+	            updateNavButtons();
+	            checkFormValidity();
+	        });
+	    }
+	});
+
+	function saveCurrentTabAnswers() {
+		const area = QUESTION_AREAS[currentTab];
+		if (!area) return;
+		area.questions.forEach(q => {
+			if (q.type === 'label') return;
+			if (q.type === 'boolean') {
+				const selected = document.querySelector(`input[name="${q.id}"]:checked`);
+				if (selected) ANSWERS[q.id] = selected.value;
+				else delete ANSWERS[q.id];
+				return;
+			}
+			if (q.type === 'chem_lookup') {
+				const nameEl = document.getElementById(q.id + '_name');
+				const priceEl = document.getElementById(q.id + '_price');
+				const gramsEl = document.getElementById(q.id + '_grams');
+				const totalEl = document.getElementById(q.id + '_total');
+				const linkEl = document.getElementById(q.id + '_link');
+				if (nameEl) ANSWERS[q.id + '_name'] = nameEl.value;
+				if (priceEl) ANSWERS[q.id + '_price'] = priceEl.value;
+				if (gramsEl) ANSWERS[q.id + '_grams'] = gramsEl.value;
+				if (totalEl) ANSWERS[q.id] = totalEl.value;
+				if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
+				if (linkEl) ANSWERS[q.id + '_link'] = linkEl.getAttribute('href') || '';
+			} else {
+				const el = document.getElementById(q.id);
+				if (el) {
+					if (q.type === 'number') {
+						ANSWERS[q.id] = el.value !== '' ? el.value : '';
+					} else {
+						ANSWERS[q.id] = el.value;
+					}
+				}
+			}
+		});
+	}
+
+
+	function restoreCurrentTabAnswers() {
+		const area = QUESTION_AREAS[currentTab];
+		if (!area) return;
+		area.questions.forEach(q => {
+			if (q.type === 'label') return;
+			if (q.type === 'boolean') {
+				const value = ANSWERS[q.id];
+				const trueEl = document.getElementById(q.id + '_true');
+				const falseEl = document.getElementById(q.id + '_false');
+				if (trueEl) trueEl.checked = value === 'true';
+				if (falseEl) falseEl.checked = value === 'false';
+				return;
+			}
+			if (q.type === 'chem_lookup') {
+				const nameEl = document.getElementById(q.id + '_name');
+				const priceEl = document.getElementById(q.id + '_price');
+				const gramsEl = document.getElementById(q.id + '_grams');
+				const totalEl = document.getElementById(q.id + '_total');
+				const linkEl = document.getElementById(q.id + '_link');
+				if (nameEl && ANSWERS[q.id + '_name'] !== undefined) nameEl.value = ANSWERS[q.id + '_name'];
+				if (priceEl && ANSWERS[q.id + '_price'] !== undefined) priceEl.value = ANSWERS[q.id + '_price'];
+				if (gramsEl && ANSWERS[q.id + '_grams'] !== undefined) gramsEl.value = ANSWERS[q.id + '_grams'];
+				if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
+				if (linkEl && ANSWERS[q.id + '_link']) {
+					linkEl.href = ANSWERS[q.id + '_link'];
+					linkEl.classList.remove('hidden');
+				} else if (linkEl) {
+					linkEl.classList.add('hidden');
+				}
+			} else {
+				const el = document.getElementById(q.id);
+				if (el && ANSWERS[q.id] !== undefined) {
+					el.value = ANSWERS[q.id];
+				}
+			}
+		});
+		area.questions.forEach(q => {
+			if (q.type === 'chem_lookup') updateChemLookupTotal(q.id);
+		});
+	}
+
+	function findQuestionById(questionId) {
+		for (const area of QUESTION_AREAS) {
+			for (const q of area.questions) {
+				if (q.id === questionId) return q;
+			}
+		}
+		return null;
+	}
+
+	function getChemLookupIds(questionId) {
+		return {
+			nameId: questionId + '_name',
+			priceId: questionId + '_price',
+			gramsId: questionId + '_grams',
+			totalId: questionId + '_total',
+			linkId: questionId + '_link',
+			errorId: questionId + '_error',
+			buttonId: questionId + '_calc',
+		};
+	}
+
+	function setChemLookupLink(questionId, link) {
+		const { linkId } = getChemLookupIds(questionId);
+		const linkEl = document.getElementById(linkId);
+		if (!linkEl) return;
+		if (link) {
+			linkEl.href = link;
+			linkEl.classList.remove('hidden');
+		} else {
+			linkEl.removeAttribute('href');
+			linkEl.classList.add('hidden');
+		}
+	}
+
+	function clearChemLookupResult(questionId) {
+		const { priceId, totalId, linkId, errorId } = getChemLookupIds(questionId);
+		const priceEl = document.getElementById(priceId);
+		const totalEl = document.getElementById(totalId);
+		const errorEl = document.getElementById(errorId);
+		if (priceEl) priceEl.value = '';
+		if (totalEl) totalEl.value = '';
+		setChemLookupLink(questionId, '');
+		if (errorEl) {
+			errorEl.textContent = '';
+			errorEl.classList.add('hidden');
+		}
+		delete ANSWERS[questionId];
+		delete ANSWERS[questionId + '_price'];
+		delete ANSWERS[questionId + '_total'];
+		delete ANSWERS[questionId + '_link'];
+	}
+
+	function updateChemLookupTotal(questionId) {
+		const { priceId, gramsId, totalId } = getChemLookupIds(questionId);
+		const priceEl = document.getElementById(priceId);
+		const gramsEl = document.getElementById(gramsId);
+		const totalEl = document.getElementById(totalId);
+		const price = parseFloat(priceEl ? priceEl.value : '');
+		const grams = parseFloat(gramsEl ? gramsEl.value : '');
+		let total = '';
+		if (!isNaN(price) && !isNaN(grams)) {
+			total = (price * grams).toFixed(2);
+		}
+		if (totalEl) totalEl.value = total;
+		if (!isNaN(price)) ANSWERS[questionId + '_price'] = String(price);
+		else delete ANSWERS[questionId + '_price'];
+		if (!isNaN(grams)) ANSWERS[questionId + '_grams'] = String(grams);
+		else delete ANSWERS[questionId + '_grams'];
+		if (total !== '') {
+			ANSWERS[questionId] = total;
+			ANSWERS[questionId + '_total'] = total;
+		} else {
+			delete ANSWERS[questionId];
+			delete ANSWERS[questionId + '_total'];
+		}
+		return total;
+	}
+
+	async function calculateChemLookup(questionId) {
+		const question = findQuestionById(questionId);
+		if (!question) return;
+		const { nameId, priceId, gramsId, totalId, errorId, buttonId } = getChemLookupIds(questionId);
+		const nameEl = document.getElementById(nameId);
+		const priceEl = document.getElementById(priceId);
+		const gramsEl = document.getElementById(gramsId);
+		const totalEl = document.getElementById(totalId);
+		const errorEl = document.getElementById(errorId);
+		const buttonEl = document.getElementById(buttonId);
+		const name = nameEl ? nameEl.value.trim() : '';
+		const mlCheckbox = document.getElementById(questionId + '_ml');
+		const useMl = mlCheckbox && mlCheckbox.checked;
+		const priceLabel = document.getElementById(questionId + '_price_label');
+		const gramsLabel = document.getElementById(questionId + '_grams_label');
+		if (priceLabel) priceLabel.textContent = useMl ? 'Price per mL' : 'Price per g';
+		if (gramsLabel) gramsLabel.textContent = useMl ? 'mL used' : 'Grams used';
+		if (!name) {
+			if (errorEl) {
+				errorEl.textContent = 'Enter a substance name first.';
+				errorEl.classList.remove('hidden');
+			}
+			return;
+		}
+		if (buttonEl) {
+			buttonEl.disabled = true;
+			buttonEl.textContent = 'Calculating...';
+		}
+		try {
+			const lookupFn = window.lookupChemicalPrice;
+			if (typeof lookupFn !== 'function') {
+				throw new Error('Chemical lookup is not ready yet.');
+			}
+			const result = await lookupFn(name, 'US', useMl ? 'ml' : 'g');
+			if (result.success) {
+				if (priceEl) priceEl.value = result.price;
+				if (errorEl) {
+					errorEl.textContent = '';
+					errorEl.classList.add('hidden');
+				}
+				setChemLookupLink(questionId, result.link || '');
+				updateChemLookupTotal(questionId);
+			} else {
+				clearChemLookupResult(questionId);
+				if (errorEl) {
+					errorEl.textContent = result.error || 'No price found.';
+					errorEl.classList.remove('hidden');
+				}
+			}
+		} finally {
+			if (buttonEl) {
+				buttonEl.disabled = false;
+				buttonEl.textContent = 'Calculate';
+			}
+		}
+	}
+
+	function renderTabs() {
+		const tabNav = document.getElementById('tab-nav');
+		tabNav.innerHTML = '';
+		QUESTION_AREAS.forEach((area, idx) => {
+			const btn = document.createElement('button');
+			btn.type = 'button';
+			btn.className = 'tab-btn' + (idx === currentTab ? ' tab-btn-active' : '');
+			btn.textContent = area.title;
+			btn.onclick = () => { goToTab(idx); };
+			tabNav.appendChild(btn);
+		});
+	}
+
+	function renderQuestions() {
+		const form = document.getElementById('assessment-form');
+		form.innerHTML = '';
+		const area = QUESTION_AREAS[currentTab];
+		   area.questions.forEach(q => {
+			   if (q.type === 'label') {
+				   form.innerHTML += `<div class="form-label-block">${q.text || ''}</div>`;
+				   return;
+			   }
+			   let input = '';
+			   if (q.type === 'dropdown') {
+				   const opts = typeof q.options === 'string' ? q.options.split(';') : q.options;
+				   input = `<select id="${q.id}" name="${q.id}" class="form-input" required><option value="">Select...</option>${opts.map(opt => `<option value="${opt}">${opt}</option>`).join('')}</select>`;
+			   } else if (q.type === 'boolean') {
+				   input = `
+					   <div class="boolean-group" role="radiogroup" aria-labelledby="${q.id}_label">
+						   <label class="boolean-option" for="${q.id}_true">
+							   <input id="${q.id}_true" name="${q.id}" type="radio" value="true" data-boolean-id="${q.id}">
+							   <span>True</span>
+						   </label>
+						   <label class="boolean-option" for="${q.id}_false">
+							   <input id="${q.id}_false" name="${q.id}" type="radio" value="false" data-boolean-id="${q.id}">
+							   <span>False</span>
+						   </label>
+					   </div>
+				   `;
+			   } else if (q.type === 'number') {
+				   input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${q.unit || ''}</span></div>`;
+			   } else if (q.type === 'text') {
+				   input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
+			   } else if (q.type === 'chem_lookup') {
+				   input = `
+					   <div class="chem-lookup-container">
+						   <div class="chem-lookup-name-wrapper">
+							   <input id="${q.id}_name" name="${q.id}_name" type="text" placeholder="Enter substance name..." class="form-input chem-lookup-name" autocomplete="off">
+							   <label class="ml-label">
+								   <input id="${q.id}_ml" type="checkbox" class="chem-lookup-ml">
+								   <span class="ml-span">mL</span>
+							   </label>
+						   </div>
+						   <button id="${q.id}_calc" data-chem-question-id="${q.id}" type="button" class="btn-calculate">Calculate</button>
+					   </div>
+					   <div class="chem-lookup-price-section">
+						   <div class="chem-lookup-price-wrapper">
+							   <label id="${q.id}_price_label" class="input-label-small">Price per g</label>
+							   <div class="chem-lookup-price-input-wrapper">
+								   <input id="${q.id}_price" name="${q.id}_price" type="number" min="0" step="any" placeholder="Press Calculate" class="form-input chem-lookup-price">
+								   <a id="${q.id}_link" href="#" target="_blank" rel="noopener noreferrer" class="hidden info-link" aria-label="Open source link" title="Open source link"><span>i</span></a>
+							   </div>
+						   </div>
+						   <div class="chem-lookup-grams-wrapper">
+							   <label id="${q.id}_grams_label" for="${q.id}_grams" class="input-label-small">Grams used</label>
+							   <input id="${q.id}_grams" name="${q.id}_grams" type="number" min="0" step="any" placeholder="0" class="form-input">
+						   </div>
+					   </div>
+					   <div class="chem-lookup-total-section">
+						   <label for="${q.id}_total" class="input-label-small">Total cost</label>
+						   <input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+					   </div>
+					   <div id="${q.id}_error" class="error-message hidden"></div>
+				   `;
+			   }
+			   // Tooltip icon HTML if help_text exists
+			   let tooltip = '';
+			   if (q.help_text && q.help_text.trim()) {
+				   tooltip = `
+					   <span class="tooltip-container">
+						   <span class="tooltip-icon">i</span>
+						   <span class="tooltip-text">${q.help_text.replace(/"/g, '&quot;')}</span>
+					   </span>
+				   `;
+			   }
+			   const labelId = `${q.id}_label`;
+			   form.innerHTML += `
+				   <div class="form-question">
+					   <label id="${labelId}" for="${q.id}" class="form-label">${q.text}${tooltip}</label>
+					   ${input}
+				   </div>
+			   `;
+		   });
+		   // Restore answers for this tab
+		   restoreCurrentTabAnswers();
+	   }
+
+	   document.addEventListener('click', function(e) {
+		   const button = e.target && e.target.closest ? e.target.closest('button[data-chem-question-id]') : null;
+		   if (!button) return;
+		   const questionId = button.getAttribute('data-chem-question-id');
+		   if (!questionId) return;
+		   calculateChemLookup(questionId);
+	   });
+
+	   document.addEventListener('input', function(e) {
+		   const el = e.target;
+		   if (!el || !el.id) return;
+		   if (el.matches('input[type="radio"][data-boolean-id]')) {
+			   const qid = el.getAttribute('data-boolean-id');
+			   if (qid) ANSWERS[qid] = el.value;
+			   checkFormValidity();
+			   return;
+		   }
+		   if (el.id.endsWith('_name')) {
+			   const questionId = el.id.slice(0, -5);
+			   clearChemLookupResult(questionId);
+			   ANSWERS[el.id] = el.value;
+			   checkFormValidity();
+			   return;
+		   }
+		   if (el.id.endsWith('_grams') || el.id.endsWith('_price')) {
+			   const questionId = el.id.replace(/_(grams|price)$/, '');
+			   ANSWERS[el.id] = el.value;
+			   updateChemLookupTotal(questionId);
+			   checkFormValidity();
+			   return;
+		   }
+		   if (el.id.endsWith('_ml')) {
+			   const qid = el.id.slice(0, -3);
+			   const priceLabel = document.getElementById(qid + '_price_label');
+			   const gramsLabel = document.getElementById(qid + '_grams_label');
+			   if (priceLabel) priceLabel.textContent = el.checked ? 'Price per mL' : 'Price per g';
+			   if (gramsLabel) gramsLabel.textContent = el.checked ? 'mL used' : 'Grams used';
+			   clearChemLookupResult(qid);
+			   checkFormValidity();
+			   return;
+		   }
+		   ANSWERS[el.id] = el.value;
+		   checkFormValidity();
+	   });
+
+	function updateSectionTitle() {
+		document.getElementById('section-title').textContent = QUESTION_AREAS[currentTab].title;
+	}
+
+	function updateProgress() {
+		const percent = ((currentTab + 1) / QUESTION_AREAS.length) * 100;
+		document.getElementById('progress-bar').style.width = percent + '%';
+		document.getElementById('progress-label').textContent = `Section ${currentTab + 1} of ${QUESTION_AREAS.length}: ${QUESTION_AREAS[currentTab].title}`;
+	}
+
+	function updateNavButtons() {
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const submitBtn = document.getElementById('submit-btn');
+
+    if (currentTab === 0) prevBtn.classList.add('hidden');
+    else prevBtn.classList.remove('hidden');
+
+    if (currentTab === QUESTION_AREAS.length - 1) {
+        nextBtn.classList.add('hidden');
+        submitBtn.classList.remove('hidden');
+    } else {
+        nextBtn.classList.remove('hidden');
+        submitBtn.classList.add('hidden');
+    }
+}
+
+	function goToTab(idx) {
+		saveCurrentTabAnswers();
+		currentTab = idx;
+		renderTabs();
+		renderQuestions();
+		updateSectionTitle();
+		updateProgress();
+		updateNavButtons();
+		checkFormValidity();
+	}
+
+
+	// Native CSV parser: handles quoted fields, commas, Windows line endings
+	function parseCSV(csv) {
+		const rows = [];
+		let cur = '', inQuotes = false, row = [], i = 0;
+		// Normalize line endings
+		csv = csv.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+		while (i < csv.length) {
+			const c = csv[i];
+			if (inQuotes) {
+				if (c === '"') {
+					if (csv[i+1] === '"') { cur += '"'; i++; } // Escaped quote
+					else inQuotes = false;
+				} else {
+					cur += c;
+				}
+			} else {
+				if (c === '"') inQuotes = true;
+				else if (c === ',') { row.push(cur); cur = ''; }
+				else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+				else cur += c;
+			}
+			i++;
+		}
+		if (cur.length > 0 || row.length > 0) { row.push(cur); rows.push(row); }
+		// Convert to array of objects
+		const headers = rows[0];
+		return rows.slice(1).filter(r => r.length > 1 && r.some(cell => cell.trim() !== '')).map(r => {
+			const obj = {};
+			headers.forEach((h, idx) => { obj[h.trim()] = (r[idx] || '').trim(); });
+			return obj;
+		});
+	}
+
+	async function loadQuestionsFromCSV() {
+		const loadingMsg = document.getElementById('loading-message');
+		const errorMsg = document.getElementById('error-message');
+		try {
+			const res = await fetch('config/questions.csv');
+			if (!res.ok) throw new Error('File not found');
+			const csvText = await res.text();
+			const allRows = parseCSV(csvText);
+			// Group by 'section' column
+			const sectionMap = {};
+			allRows.forEach(row => {
+				const section = row.section || 'Section';
+				if (!sectionMap[section]) sectionMap[section] = [];
+				   let parsedParams = row.params;
+				   if (typeof parsedParams === 'string' && parsedParams.trim().length > 0) {
+					   try { parsedParams = JSON.parse(parsedParams); } catch { parsedParams = row.params; }
+				   }
+				   sectionMap[section].push({
+					   ...row,
+					   params: parsedParams,
+					   required: String(row.required).toLowerCase() === 'true',
+				   });
+			});
+			QUESTION_AREAS = Object.entries(sectionMap).map(([section, questions]) => ({
+				id: section.toLowerCase().replace(/\s+/g, '_'),
+				title: section,
+				questions
+			}));
+			if (!QUESTION_AREAS.length) throw new Error('No questions found in CSV.');
+			loadingMsg.style.display = 'none';
+			errorMsg.style.display = 'none';
+			document.querySelector('main').classList.remove('hidden');
+			renderTabs();
+			renderQuestions();
+			updateSectionTitle();
+			updateProgress();
+			updateNavButtons();
+			checkFormValidity();
+		} catch (err) {
+			loadingMsg.style.display = 'none';
+			errorMsg.textContent = 'Failed to load questionnaire: ' + err.message + '\n(If running locally, use Live Server or a local web server)';
+			errorMsg.style.display = '';
+			document.querySelector('main').classList.add('hidden');
+		}
+	}
+
+	// Initial render
+	document.addEventListener('DOMContentLoaded', () => {
+		document.querySelector('main').classList.add('hidden');
+		loadQuestionsFromCSV();
+	});
+	</script>
+
+	   
+	   <script src="scorer.js"></script>
+
+
+	   <!-- =================== CHART: Results Graphic Renderer =================== -->
+	   <script src="chart.js"></script>
+
+	<!-- =================== FORM LOGIC: Validation & Submission =================== -->
+	<script>
+	// Enable submit button only when all required fields are filled (across all tabs)
+	function checkFormValidity() {
+		// Check all required fields in all areas using ANSWERS, not just DOM
+		let allValid = true;
+		for (const area of QUESTION_AREAS) {
+			for (const q of area.questions) {
+				if (q.type === 'label') continue;
+				if (!q.required) continue;
+				const val = ANSWERS[q.id];
+				if (q.type === 'dropdown') {
+					if (!val || val === '') { allValid = false; break; }
+				} else if (q.type === 'boolean') {
+					if (val !== 'true' && val !== 'false') { allValid = false; break; }
+				} else if (q.type === 'number' || q.type === 'chem_lookup') {
+					if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
+				} else if (q.type === 'text') {
+					if (!val || !val.trim()) { allValid = false; break; }
+				} else {
+					if (!val) { allValid = false; break; }
+				}
+			}
+			if (!allValid) break;
+		}
+		document.getElementById('submit-btn').disabled = !allValid;
+	}
+
+	document.addEventListener('input', function(e) {
+		// Save answer immediately on input
+		const el = e.target;
+		if (el && el.id) {
+			ANSWERS[el.id] = el.value;
+		}
+		checkFormValidity();
+	});
+
+	// Navigation button logic
+	document.getElementById('prev-btn').addEventListener('click', () => {
+		if (currentTab > 0) goToTab(currentTab - 1);
+	});
+	document.getElementById('next-btn').addEventListener('click', () => {
+		if (currentTab < QUESTION_AREAS.length - 1) goToTab(currentTab + 1);
+	});
+
+	// Handle form submission
+	document.getElementById('submit-btn').addEventListener('click', function() {
+		// Validate all fields using ANSWERS
+		let allValid = true;
+		for (const area of QUESTION_AREAS) {
+			for (const q of area.questions) {
+				if (q.type === 'label') continue;
+				if (!q.required) continue;
+				const val = ANSWERS[q.id];
+				if (q.type === 'dropdown') {
+					if (!val || val === '') { allValid = false; break; }
+				} else if (q.type === 'boolean') {
+					if (val !== 'true' && val !== 'false') { allValid = false; break; }
+				} else if (q.type === 'number' || q.type === 'chem_lookup') {
+					if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
+				} else if (q.type === 'text') {
+					if (!val || !val.trim()) { allValid = false; break; }
+				} else {
+					if (!val) { allValid = false; break; }
+				}
+			}
+			if (!allValid) break;
+		}
+		if (!allValid) return;
+		// Hide form, show results
+		document.querySelector('main').classList.add('hidden');
+		document.getElementById('results-section').classList.remove('hidden');
+		// Calculate and show scores
+		const scores = calculateScores(QUESTION_AREAS, ANSWERS);
+		renderResultsGraphic(scores);
+		document.getElementById('debug-scores').textContent = 'Scores: ' + JSON.stringify(scores);
+	});
+
+	// Debug autofill button logic
+	   document.getElementById('debug-autofill-btn').addEventListener('click', function() {
+		   for (const area of QUESTION_AREAS) {
+			   for (const q of area.questions) {
+				   if (q.type === 'label') continue;
+				   let val = '';
+				   // Always parse params if it's a string
+				   let params = q.params;
+				   if (typeof params === 'string') {
+					   try { params = JSON.parse(params); } catch { params = {}; }
+				   }
+				   if (q.type === 'dropdown') {
+					   let opts = [];
+					   // If lookup, use keys from params for valid scoring
+					   if (q.method === 'lookup' && params && typeof params === 'object') {
+						   opts = Object.keys(params);
+					   } else {
+						   opts = typeof q.options === 'string' ? q.options.split(';') : q.options;
+					   }
+					   val = opts[Math.floor(Math.random() * opts.length)];
+				   } else if (q.type === 'number') {
+					   // Try to pick a value in a reasonable range
+					   if (q.method === 'threshold' && params && params.ranges && Array.isArray(params.ranges)) {
+						   const min = 0;
+						   const max = params.ranges[params.ranges.length-1].max || 100;
+						   val = (Math.random() * (max - min) + min).toFixed(2);
+					   } else {
+						   val = (Math.random() * 100).toFixed(2);
+					   }
+				   } else if (q.type === 'text') {
+					   val = 'debug';
+				   } else if (q.type === 'boolean') {
+					   if (q.method === 'lookup' && params && typeof params === 'object') {
+						   const keys = Object.keys(params).filter(k => k === 'true' || k === 'false');
+						   val = keys[Math.floor(Math.random() * keys.length)] || 'false';
+					   } else {
+						   val = Math.random() > 0.5 ? 'true' : 'false';
+					   }
+				   }
+				   ANSWERS[q.id] = val;
+				   const el = document.getElementById(q.id);
+				   if (el) el.value = val;
+				   if (q.type === 'boolean') {
+					   const trueEl = document.getElementById(q.id + '_true');
+					   const falseEl = document.getElementById(q.id + '_false');
+					   if (trueEl) trueEl.checked = val === 'true';
+					   if (falseEl) falseEl.checked = val === 'false';
+				   }
+			   }
+		   }
+		   checkFormValidity();
+	   });
+	</script>
+
+
+<script>
+document.getElementById('debug-autofill-btn').addEventListener('click', function() {
+    setTimeout(() => {
+        console.log('=== DEBUG ANSWERS ===');
+        console.log(JSON.stringify(ANSWERS, null, 2));
+        console.log('=== DEBUG QUESTIONS ===');
+        for (const area of QUESTION_AREAS) {
+            for (const q of area.questions) {
+                console.log({
+                    id: q.id,
+                    type: q.type,
+                    method: q.method,
+                    dimension: q.dimension,
+                    weight: q.weight,
+                    params: q.params,
+                    answer: ANSWERS[q.id]
+                });
+            }
+        }
+    }, 100); // This closes setTimeout
+}); // This closes the event listener
+</script>
+<!-- =================== END =================== -->
+</body>
+</html>
