@@ -1,0 +1,989 @@
+/* ===========================
+   PharmaScore Stylesheet
+   Pharmaceutical Lab Sustainability Assessment
+   Industrial Design - Professional & Accessible
+   =========================== */
+
+/* Reset and Base Styles */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+html {
+	font-size: 16px;
+}
+
+body {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	background: linear-gradient(135deg, #f0f4f8 0%, #e8ecf1 100%);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+	color: #2c3e50;
+	line-height: 1.6;
+	font-weight: 400;
+}
+
+/* ===========================
+   Layout Containers
+   =========================== */
+
+header {
+	width: 100%;
+	max-width: 700px;
+	background: linear-gradient(135deg, #1a3a52 0%, #2d5a7b 100%);
+	box-shadow: 0 4px 12px rgba(26, 58, 82, 0.15);
+	padding: 28px 24px;
+	margin-bottom: 24px;
+	border-radius: 0 0 12px 12px;
+}
+
+header h1 {
+	font-size: 26px;
+	font-weight: 700;
+	text-align: center;
+	color: #ffffff;
+	letter-spacing: -0.5px;
+}
+
+header p {
+	font-size: 13px;
+	text-align: center;
+	color: #a8c5dc;
+	margin-top: 8px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+main {
+	width: 100%;
+	max-width: 700px;
+	background-color: #ffffff;
+	border-radius: 12px;
+	box-shadow: 0 8px 24px rgba(26, 58, 82, 0.08);
+	padding: 48px;
+	border-top: 4px solid #2d5a7b;
+}
+
+main:not(.hidden) {
+	display: block;
+}
+
+main.hidden {
+	display: none;
+}
+
+/* ===========================
+   Loading and Error Messages
+   =========================== */
+
+#loading-message {
+	width: 100%;
+	max-width: 700px;
+	text-align: center;
+	font-size: 16px;
+	color: #2d5a7b;
+	margin: 32px auto;
+	font-weight: 500;
+}
+
+#error-message {
+	width: 100%;
+	max-width: 700px;
+	text-align: center;
+	font-size: 16px;
+	color: #dc2626;
+	margin: 32px auto;
+	background-color: #fef2f2;
+	padding: 16px;
+	border-radius: 8px;
+	border-left: 4px solid #dc2626;
+	font-weight: 500;
+}
+
+#error-message.hidden {
+	display: none;
+}
+
+/* ===========================
+   Progress Indicator
+   =========================== */
+
+#progress-indicator {
+	width: 100%;
+	max-width: 700px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 20px;
+	gap: 12px;
+	padding: 0 8px;
+}
+
+.progress-bar-container {
+	flex: 1;
+	height: 6px;
+	background-color: #e0e8f0;
+	border-radius: 3px;
+	overflow: hidden;
+	box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+#progress-bar {
+	height: 100%;
+	background: linear-gradient(90deg, #2d5a7b 0%, #3d7ca3 100%);
+	border-radius: 3px;
+	transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+	box-shadow: 0 1px 3px rgba(45, 90, 123, 0.3);
+}
+
+#progress-label {
+	font-size: 12px;
+	color: #5a6f82;
+	white-space: nowrap;
+	margin-left: 0px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+}
+
+/* ===========================
+   Tab Navigation
+   =========================== */
+
+nav {
+	width: 100%;
+	max-width: 700px;
+	margin-bottom: 12px;
+}
+
+#tab-nav {
+	display: flex;
+	border-bottom: 2px solid #e0e8f0;
+	gap: 0;
+	background-color: #f8fafb;
+	border-radius: 8px 8px 0 0;
+	padding: 0 4px;
+	gap: 4px;
+}
+
+.tab-btn {
+	flex: 1;
+	padding: 12px 14px;
+	text-align: center;
+	font-weight: 600;
+	font-size: 14px;
+	border-bottom: 3px solid transparent;
+	background-color: transparent;
+	color: #5a6f82;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	border: none;
+	outline: none;
+	border-radius: 6px 6px 0 0;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+	font-size: 13px;
+}
+
+.tab-btn:hover:not(.tab-btn-active) {
+	background-color: #f0f4f8;
+	color: #3d5a73;
+}
+
+.tab-btn-active {
+	border-bottom-color: #2d5a7b;
+	color: #1a3a52;
+	background-color: #ffffff;
+	border-radius: 6px 6px 0 0;
+}
+
+.tab-btn:focus {
+	outline: 2px solid #2d5a7b;
+	outline-offset: -2px;
+}
+
+/* ===========================
+   Form Section Title
+   =========================== */
+
+#section-title {
+	font-size: 22px;
+	font-weight: 700;
+	color: #1a3a52;
+	margin-bottom: 28px;
+	padding-bottom: 12px;
+	border-bottom: 2px solid #e0e8f0;
+	letter-spacing: -0.3px;
+}
+
+/* ===========================
+   Form Elements
+   =========================== */
+
+#assessment-form {
+	display: flex;
+	flex-direction: column;
+	gap: 32px;
+}
+
+.form-label-block {
+	padding: 14px 16px;
+	border-left: 4px solid #2d5a7b;
+	background-color: #f8fafb;
+	border-radius: 8px;
+	color: #1a3a52;
+	line-height: 1.5;
+}
+
+.form-label-block h3,
+.form-label-block h4 {
+	font-size: 18px;
+	font-weight: 700;
+	margin: 0 0 6px 0;
+	color: #1a3a52;
+}
+
+.form-label-block p {
+	margin: 0;
+	font-size: 14px;
+	color: #3d5a73;
+}
+
+.form-question {
+	margin-bottom: 0px;
+}
+
+.boolean-group {
+	display: flex;
+	gap: 12px;
+	margin-top: 6px;
+}
+
+.boolean-option {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 14px;
+	border: 1.5px solid #d4dce5;
+	border-radius: 8px;
+	background-color: #ffffff;
+	color: #1a3a52;
+	font-weight: 600;
+	cursor: pointer;
+	transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.boolean-option:has(input:checked) {
+	border-color: #2d5a7b;
+	background-color: #f0f4f8;
+	box-shadow: 0 0 0 3px rgba(45, 90, 123, 0.08);
+}
+
+.boolean-option input[type="radio"] {
+	accent-color: #2d5a7b;
+}
+
+.form-label {
+	display: block;
+	font-weight: 600;
+	color: #1a3a52;
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 15px;
+	letter-spacing: -0.2px;
+}
+
+.form-input {
+	display: block;
+	width: 100%;
+	padding: 11px 14px;
+	border: 1.5px solid #d4dce5;
+	border-radius: 7px;
+	background-color: #ffffff;
+	color: #2c3e50;
+	font-size: 15px;
+	box-shadow: 0 2px 4px rgba(26, 58, 82, 0.04);
+	transition: border-color 0.3s, box-shadow 0.3s, background-color 0.2s;
+	margin-top: 6px;
+	font-weight: 400;
+}
+
+.form-input:focus {
+	outline: none;
+	border-color: #2d5a7b;
+	box-shadow: 0 0 0 4px rgba(45, 90, 123, 0.08), 0 2px 8px rgba(26, 58, 82, 0.08);
+	background-color: #f8fafb;
+}
+
+.form-input:disabled {
+	background-color: #f0f4f8;
+	color: #7a8a98;
+	cursor: not-allowed;
+	border-color: #e0e8f0;
+}
+
+.form-input-readonly {
+	background-color: #f0fdf4;
+	color: #166534;
+	border-color: #bbf7d0;
+	cursor: not-allowed;
+	font-weight: 500;
+}
+
+.form-input-readonly:focus {
+	border-color: #86efac;
+	box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.08), 0 2px 8px rgba(26, 58, 82, 0.08);
+}
+
+/* Number input with units */
+.number-input-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.number-input-wrapper .form-input {
+	flex: 1;
+	margin-top: 4px;
+}
+
+.unit-label {
+	color: #6b7280;
+	font-size: 14px;
+	white-space: nowrap;
+}
+
+/* ===========================
+   Chemical Lookup Component
+   =========================== */
+
+.chem-lookup-container {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 6px;
+}
+
+.chem-lookup-name-wrapper {
+	min-width: 0;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.chem-lookup-name-wrapper .form-input {
+	flex: 1;
+	min-width: 0;
+	margin-top: 0px;
+}
+
+.ml-label {
+	margin-left: 4px;
+	display: inline-flex;
+	align-items: center;
+	font-size: 13px;
+	gap: 4px;
+	flex-shrink: 0;
+	font-weight: 500;
+	color: #3d5a73;
+}
+
+.ml-label input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	accent-color: #2d5a7b;
+}
+
+.ml-span {
+	margin-left: 2px;
+}
+
+.btn-calculate {
+	margin-top: 0px;
+	flex-shrink: 0;
+	padding: 11px 20px;
+	background: linear-gradient(135deg, #1a3a52 0%, #2d5a7b 100%);
+	color: #ffffff;
+	font-weight: 600;
+	border: none;
+	border-radius: 7px;
+	box-shadow: 0 2px 8px rgba(26, 58, 82, 0.15);
+	cursor: pointer;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	font-size: 13px;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+}
+
+.btn-calculate:hover {
+	background: linear-gradient(135deg, #0f2133 0%, #1a3a52 100%);
+	box-shadow: 0 4px 12px rgba(26, 58, 82, 0.25);
+	transform: translateY(-1px);
+}
+
+.btn-calculate:focus {
+	outline: 2px solid #2d5a7b;
+	outline-offset: 2px;
+}
+
+.btn-calculate:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* Chemical Lookup Price Section */
+.chem-lookup-price-section {
+	margin-top: 16px;
+	display: grid;
+	grid-template-columns: 2fr 1fr;
+	gap: 16px;
+	align-items: flex-start;
+}
+
+.chem-lookup-price-wrapper {
+	min-width: 0;
+	flex: 2;
+}
+
+.input-label-small {
+	display: block;
+	font-size: 12px;
+	font-weight: 600;
+	color: #5a6f82;
+	margin-bottom: 6px;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+}
+
+.chem-lookup-price-input-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.chem-lookup-price-input-wrapper .form-input {
+	flex: 1;
+	margin-top: 0px;
+	background-color: #ffffff;
+	color: #1a3a52;
+}
+
+.info-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 38px;
+	height: 38px;
+	flex-shrink: 0;
+	border: 2px solid #2d5a7b;
+	background: linear-gradient(135deg, #2d5a7b 0%, #3d7ca3 100%);
+	color: #ffffff;
+	text-decoration: none;
+	border-radius: 50%;
+	font-weight: 700;
+	font-size: 16px;
+	box-shadow: 0 2px 8px rgba(26, 58, 82, 0.15);
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	cursor: pointer;
+}
+
+.info-link:hover {
+	background: linear-gradient(135deg, #1a3a52 0%, #2d5a7b 100%);
+	border-color: #1a3a52;
+	box-shadow: 0 4px 12px rgba(26, 58, 82, 0.25);
+	transform: scale(1.05);
+}
+
+.info-link:focus {
+	outline: 2px solid #2d5a7b;
+	outline-offset: 2px;
+}
+
+.info-link.hidden {
+	display: none;
+}
+
+/* Chemical Lookup Grams Section */
+.chem-lookup-grams-wrapper {
+	min-width: auto;
+	flex: 1;
+}
+
+.chem-lookup-grams-wrapper .form-input {
+	margin-top: 20px;
+}
+
+/* Chemical Lookup Total Section */
+.chem-lookup-total-section {
+	margin-top: 16px;
+}
+
+.chem-lookup-total-section .input-label-small {
+	margin-bottom: 6px;
+}
+
+.chem-lookup-total-section .form-input {
+	margin-top: 0px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+}
+
+/* Error Message */
+.error-message {
+	font-size: 12px;
+	color: #dc2626;
+	margin-top: 6px;
+	font-weight: 500;
+}
+
+.error-message.hidden {
+	display: none;
+}
+
+/* ===========================
+   Tooltip Component
+   =========================== */
+
+.tooltip-container {
+	position: relative;
+	display: inline-block;
+	cursor: help;
+	vertical-align: middle;
+}
+
+.tooltip-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background-color: #d4dce5;
+	color: #5a6f82;
+	font-size: 12px;
+	font-weight: 700;
+	border: 1.5px solid #a8c5dc;
+	margin-left: 4px;
+	transition: all 0.3s;
+}
+
+.tooltip-container:hover .tooltip-icon {
+	background-color: #2d5a7b;
+	color: #ffffff;
+	border-color: #1a3a52;
+	transform: scale(1.1);
+}
+
+.tooltip-text {
+	visibility: hidden;
+	opacity: 0;
+	width: max-content;
+	max-width: 240px;
+	background-color: #1a3a52;
+	color: #ffffff;
+	text-align: left;
+	border-radius: 7px;
+	padding: 10px 12px;
+	position: absolute;
+	z-index: 10;
+	bottom: 125%;
+	left: 50%;
+	transform: translateX(-50%);
+	font-size: 12px;
+	line-height: 1.5;
+	box-shadow: 0 4px 12px rgba(26, 58, 82, 0.25);
+	pointer-events: none;
+	transition: opacity 0.3s, visibility 0.3s;
+	white-space: normal;
+	font-weight: 400;
+}
+
+.tooltip-container:hover .tooltip-text {
+	visibility: visible;
+	opacity: 1;
+}
+
+.tooltip-text::after {
+	content: '';
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	border-width: 6px;
+	border-style: solid;
+	border-color: #1a3a52 transparent transparent transparent;
+}
+
+/* ===========================
+   Form Buttons
+   =========================== */
+
+.form-buttons {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 32px;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding-top: 20px;
+	border-top: 1px solid #e0e8f0;
+}
+
+/* Button base styles */
+button[type="button"] {
+	padding: 12px 28px;
+	font-weight: 600;
+	border: none;
+	border-radius: 8px;
+	box-shadow: 0 2px 8px rgba(26, 58, 82, 0.12);
+	cursor: pointer;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	font-size: 15px;
+	outline: none;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+}
+
+button[type="button"]:hover {
+	box-shadow: 0 4px 12px rgba(26, 58, 82, 0.16);
+	transform: translateY(-1px);
+}
+
+button[type="button"]:active {
+	transform: translateY(0px);
+}
+
+button[type="button"]:focus {
+	outline: 2px solid #1a3a52;
+	outline-offset: 2px;
+}
+
+button[type="button"]:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	box-shadow: none;
+	transform: none;
+}
+
+/* Previous Button */
+.btn-prev {
+	background-color: #e8ecf1;
+	color: #3d5a73;
+}
+
+.btn-prev:hover {
+	background-color: #dce4ed;
+}
+
+.btn-prev.hidden {
+	display: none;
+}
+
+/* Next Button */
+.btn-next {
+	background: linear-gradient(135deg, #2d5a7b 0%, #3d7ca3 100%);
+	color: #ffffff;
+	flex: 1;
+	min-width: 120px;
+}
+
+.btn-next:hover {
+	background: linear-gradient(135deg, #234556 0%, #2d6a8e 100%);
+	box-shadow: 0 6px 16px rgba(45, 90, 123, 0.2);
+}
+
+/* Submit Button */
+.btn-submit {
+	background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+	color: #ffffff;
+	flex: 1;
+	min-width: 120px;
+	font-size: 16px;
+	padding: 14px 32px;
+	box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.btn-submit:hover {
+	background: linear-gradient(135deg, #059669 0%, #047857 100%);
+	box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+}
+
+.btn-submit:disabled {
+	background: linear-gradient(135deg, #d1fae5 0%, #c6f6d5 100%);
+	color: #6ee7b7;
+}
+
+.btn-submit.hidden {
+	display: none;
+}
+
+/* Debug Autofill Button */
+.btn-debug {
+	background-color: #fbbf24;
+	color: #78350f;
+	padding: 10px 16px;
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.btn-debug:hover {
+	background-color: #f59e0b;
+}
+
+/* ===========================
+   Results Section
+   =========================== */
+
+#results-section {
+	width: 100%;
+	max-width: 700px;
+	margin-top: 32px;
+	background-color: #ffffff;
+	border-radius: 12px;
+	box-shadow: 0 8px 24px rgba(26, 58, 82, 0.08);
+	padding: 36px;
+	border-left: 5px solid #10b981;
+	min-height: auto;
+	display: flex;
+	flex-direction: column;
+}
+
+#results-section.hidden {
+	display: none;
+}
+
+#results-section h3 {
+	font-size: 22px;
+	font-weight: 700;
+	color: #10b981;
+	margin-bottom: 20px;
+	letter-spacing: -0.3px;
+}
+
+#results-graphic {
+	width: 100%;
+	margin-bottom: 24px;
+	min-height: 200px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: #f0fdf4;
+	border-radius: 8px;
+	padding: 20px;
+}
+
+#debug-scores {
+	font-size: 12px;
+	color: #5a6f82;
+	margin-top: 20px;
+	padding: 16px;
+	background-color: #f0f4f8;
+	border-radius: 8px;
+	border-left: 3px solid #2d5a7b;
+	word-break: break-all;
+	max-height: 200px;
+	overflow-y: auto;
+	font-family: 'Courier New', monospace;
+	line-height: 1.4;
+}
+
+.btn-retake {
+	background: linear-gradient(135deg, #2d5a7b 0%, #3d7ca3 100%);
+	color: #ffffff;
+	margin-top: 28px;
+	align-self: flex-end;
+	min-width: 160px;
+	text-align: center;
+}
+
+.btn-retake:hover {
+	background: linear-gradient(135deg, #234556 0%, #2d6a8e 100%);
+	box-shadow: 0 6px 16px rgba(45, 90, 123, 0.2);
+}
+
+/* ===========================
+   Utility Classes
+   =========================== */
+
+.hidden {
+	display: none !important;
+}
+
+/* ===========================
+   Responsive Design
+   =========================== */
+
+@media (max-width: 768px) {
+	body {
+		padding: 8px;
+	}
+
+	header {
+		max-width: 100%;
+		padding: 20px 16px;
+		margin-bottom: 16px;
+		border-radius: 0 0 8px 8px;
+	}
+
+	header h1 {
+		font-size: 22px;
+	}
+
+	header p {
+		font-size: 12px;
+	}
+
+	main {
+		max-width: 100%;
+		padding: 24px 16px;
+		margin: 0 auto;
+	}
+
+	#progress-indicator {
+		max-width: 100%;
+		padding: 0;
+	}
+
+	nav {
+		max-width: 100%;
+	}
+
+	#section-title {
+		font-size: 20px;
+		margin-bottom: 20px;
+	}
+
+	.form-buttons {
+		flex-direction: column-reverse;
+		gap: 10px;
+		margin-top: 24px;
+		padding-top: 16px;
+	}
+
+	button[type="button"] {
+		width: 100%;
+		padding: 12px 16px;
+		font-size: 14px;
+	}
+
+	.btn-next,
+	.btn-submit {
+		min-width: auto;
+		flex: auto;
+	}
+
+	.btn-debug {
+		font-size: 11px;
+		padding: 10px 12px;
+		width: 100%;
+	}
+
+	.tooltip-text {
+		max-width: 160px;
+		font-size: 11px;
+		bottom: 110%;
+	}
+
+	.chem-lookup-container {
+		flex-direction: column;
+	}
+
+	.boolean-group {
+		flex-direction: column;
+	}
+
+	.chem-lookup-name-wrapper {
+		width: 100%;
+	}
+
+	.btn-calculate {
+		width: 100%;
+	}
+
+	.chem-lookup-price-section {
+		grid-template-columns: 1fr;
+		flex-direction: column;
+		width: 100%;
+	}
+
+	.chem-lookup-price-wrapper {
+		width: 100%;
+	}
+
+	.chem-lookup-grams-wrapper {
+		width: 100%;
+		min-width: auto;
+	}
+
+	.chem-lookup-grams-wrapper .form-input {
+		margin-top: 4px;
+	}
+
+	.info-link {
+		width: 36px;
+		height: 36px;
+	}
+
+	#results-section {
+		max-width: 100%;
+		padding: 24px 16px;
+		margin-top: 20px;
+	}
+
+	#results-section h3 {
+		font-size: 20px;
+	}
+
+	#results-graphic {
+		min-height: 150px;
+		margin-bottom: 20px;
+	}
+
+	.btn-retake {
+		width: 100%;
+		align-self: stretch;
+	}
+
+	.number-input-wrapper {
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.unit-label {
+		align-self: flex-start;
+	}
+}
+
+@media (max-width: 360px) {
+	header h1 {
+		font-size: 20px;
+	}
+
+	#section-title {
+		font-size: 18px;
+	}
+
+	button[type="button"] {
+		padding: 10px 12px;
+		font-size: 13px;
+	}
+
+	.tab-btn {
+		padding: 10px 8px;
+		font-size: 12px;
+	}
+
+	#progress-label {
+		font-size: 11px;
+	}
+}
