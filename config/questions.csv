@@ -1,10 +1,11 @@
-section,id,text,type,options,unit,required,help_text,dimension,method,params,weight
+section,id,text,type,options,unit,required,help_text,dimension,method,params,weight,show_if_id,show_if_value
 Απόδοση,perf1,LOQ,number,,,TRUE,Χαμηλότερο LOQ είναι καλύτερο.,Efficiency,threshold,"{""ranges"": [{""max"": 1, ""score"": 100}, {""max"": 10, ""score"": 60}, {""max"": 999999, ""score"": 20}]}",0.2
-Απόδοση,perf2,Επιλεκτικότητα,dropdown,0;1;2,,TRUE,0 = Θετική, 1 = Μέτρια, 2 = Κακή.,Efficiency,lookup,"{""0"": 100, ""1"": 60, ""2"": 20}",0.2
-Απόδοση,perf3,Επαναληψιμότητα,number,,%,TRUE,<2% Θετική, 2-4% Μέτρια, >4% Κακή.,Efficiency,threshold,"{""ranges"": [{""max"": 2, ""score"": 100}, {""max"": 4, ""score"": 60}, {""max"": 999999, ""score"": 20}]}",0.2
-Απόδοση,perf4,Παραλαβή,number,,,TRUE,<2 Θετική, 2-5 Μέτρια, >5 Κακή.,Efficiency,threshold,"{""ranges"": [{""max"": 2, ""score"": 100}, {""max"": 5, ""score"": 60}, {""max"": 999999, ""score"": 20}]}",0.2
-Απόδοση,perf5,Γραμμικότητα,dropdown,0.99;0.998;0.997,,TRUE,0.99 Θετική, 0.998 Μέτρια, 0.997 Κακή.,Efficiency,lookup,"{""0.99"": 100, ""0.998"": 60, ""0.997"": 20}",0.2
-Απόδοση,perf6,Carry Over,boolean,,,TRUE,False = Θετική, True = Κακή.,Efficiency,lookup,"{""false"": 100, ""true"": 20}",0.2
+Απόδοση,perf2,Επιλεκτικότητα,dropdown,0;1;2,,TRUE,"0 = Θετική, 1 = Μέτρια, 2 = Κακή.",Efficiency,lookup,"{""0"": 100, ""1"": 60, ""2"": 20}",0.2,,
+Απόδοση,perf3,Επαναληψιμότητα,number,,%,TRUE,"<2% Θετική, 2-4% Μέτρια, >4% Κακή.",Efficiency,threshold,"{""ranges"": [{""max"": 2, ""score"": 100}, {""max"": 4, ""score"": 60}, {""max"": 999999, ""score"": 20}]}",0.2,,
+Απόδοση,perf4,Παραλαβή,number,,,TRUE,"<2 Θετική, 2-5 Μέτρια, >5 Κακή.",Efficiency,threshold,"{""ranges"": [{""max"": 2, ""score"": 100}, {""max"": 5, ""score"": 60}, {""max"": 999999, ""score"": 20}]}",0.2,,
+Απόδοση,perf5,Γραμμικότητα,dropdown,0.99;0.998;0.997,,TRUE,"0.99 Θετική, 0.998 Μέτρια, 0.997 Κακή.",Efficiency,lookup,"{""0.99"": 100, ""0.998"": 60, ""0.997"": 20}",0.2,,
+Απόδοση,perf6,Carry Over,boolean,,,TRUE,"False = Θετική, True = Κακή.",Efficiency,lookup,"{""false"": 100, ""true"": 20}",0.2,,
+Απόδοση,perf7,"If Carry Over is True, describe the mitigation or monitoring step.",text,,,FALSE,Shown only when Carry Over is True.,Safety,,,,perf6,true
 Cost,q1,What primary solvent do you use?,dropdown,Water;Ethanol;Acetone;Dichloromethane,,TRUE,Select the main solvent used in your batch process.,Sustainability,lookup,"{""Water"": 100, ""Ethanol"": 80, ""Acetone"": 50, ""Dichloromethane"": 20}",0.4
 Cost,q2,What is the solvent recovery rate?,number,,%,TRUE,Enter the percentage of solvent recovered.,Efficiency,threshold,"{""ranges"": [{""max"": 50, ""score"": 20}, {""max"": 80, ""score"": 60}, {""max"": 100, ""score"": 100}]}",0.3
 Cost,cost_subsection_1,<h3>Solvent Handling Details</h3><p>Please provide the operational details below.</p>,label,,,FALSE,,,,,

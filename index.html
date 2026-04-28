@@ -330,6 +330,55 @@
 		});
 	}
 
+	function shouldShowQuestion(q) {
+		if (!q.show_if_id || !q.show_if_value) return true;
+		const parentValue = ANSWERS[q.show_if_id];
+		if (parentValue === undefined || parentValue === null || parentValue === '') return false;
+		const expectedValue = String(q.show_if_value).trim();
+		const actualValue = String(parentValue);
+		if (expectedValue.startsWith('!')) {
+			return actualValue !== expectedValue.slice(1);
+		}
+		return actualValue === expectedValue;
+	}
+
+	function clearQuestionInputs(q) {
+		if (q.type === 'chem_lookup') {
+			clearChemLookupResult(q.id);
+		}
+		const wrapper = document.getElementById('question-wrapper-' + q.id);
+		if (wrapper) {
+			wrapper.querySelectorAll('input, select, textarea').forEach(el => {
+				if (el.type === 'radio' || el.type === 'checkbox') el.checked = false;
+				else el.value = '';
+			});
+		}
+		delete ANSWERS[q.id];
+		if (q.type === 'chem_lookup') {
+			delete ANSWERS[q.id + '_name'];
+			delete ANSWERS[q.id + '_price'];
+			delete ANSWERS[q.id + '_grams'];
+			delete ANSWERS[q.id + '_total'];
+			delete ANSWERS[q.id + '_link'];
+		}
+	}
+
+	function updateConditionalVisibility() {
+		const area = QUESTION_AREAS[currentTab];
+		if (!area) return;
+		area.questions.forEach(q => {
+			if (!q.show_if_id || !q.show_if_value) return;
+			const wrapper = document.getElementById('question-wrapper-' + q.id);
+			if (!wrapper) return;
+			const shouldShow = shouldShowQuestion(q);
+			wrapper.classList.toggle('hidden', !shouldShow);
+			if (!shouldShow) {
+				clearQuestionInputs(q);
+			}
+		});
+		checkFormValidity();
+	}
+
 	function renderQuestions() {
 		const form = document.getElementById('assessment-form');
 		form.innerHTML = '';
@@ -339,6 +388,8 @@
 				   form.innerHTML += `<div class="form-label-block">${q.text || ''}</div>`;
 				   return;
 			   }
+			   const isConditional = q.show_if_id && q.show_if_value;
+			   const isVisible = shouldShowQuestion(q);
 			   let input = '';
 			   if (q.type === 'dropdown') {
 				   const opts = typeof q.options === 'string' ? q.options.split(';') : q.options;
@@ -403,8 +454,10 @@
 				   `;
 			   }
 			   const labelId = `${q.id}_label`;
+			   const wrapperId = `question-wrapper-${q.id}`;
+			   const dataAttrs = isConditional ? ` data-show-if-id="${String(q.show_if_id).replace(/"/g, '&quot;')}" data-show-if-value="${String(q.show_if_value).replace(/"/g, '&quot;')}"` : '';
 			   form.innerHTML += `
-				   <div class="form-question">
+				   <div id="${wrapperId}" class="form-question${isVisible ? '' : ' hidden'}"${dataAttrs}>
 					   <label id="${labelId}" for="${q.id}" class="form-label">${q.text}${tooltip}</label>
 					   ${input}
 				   </div>
@@ -412,6 +465,7 @@
 		   });
 		   // Restore answers for this tab
 		   restoreCurrentTabAnswers();
+		   updateConditionalVisibility();
 	   }
 
 	   document.addEventListener('click', function(e) {
@@ -428,34 +482,25 @@
 		   if (el.matches('input[type="radio"][data-boolean-id]')) {
 			   const qid = el.getAttribute('data-boolean-id');
 			   if (qid) ANSWERS[qid] = el.value;
-			   checkFormValidity();
-			   return;
-		   }
-		   if (el.id.endsWith('_name')) {
+		   } else if (el.id.endsWith('_name')) {
 			   const questionId = el.id.slice(0, -5);
 			   clearChemLookupResult(questionId);
 			   ANSWERS[el.id] = el.value;
-			   checkFormValidity();
-			   return;
-		   }
-		   if (el.id.endsWith('_grams') || el.id.endsWith('_price')) {
+		   } else if (el.id.endsWith('_grams') || el.id.endsWith('_price')) {
 			   const questionId = el.id.replace(/_(grams|price)$/, '');
 			   ANSWERS[el.id] = el.value;
 			   updateChemLookupTotal(questionId);
-			   checkFormValidity();
-			   return;
-		   }
-		   if (el.id.endsWith('_ml')) {
+		   } else if (el.id.endsWith('_ml')) {
 			   const qid = el.id.slice(0, -3);
 			   const priceLabel = document.getElementById(qid + '_price_label');
 			   const gramsLabel = document.getElementById(qid + '_grams_label');
 			   if (priceLabel) priceLabel.textContent = el.checked ? 'Price per mL' : 'Price per g';
 			   if (gramsLabel) gramsLabel.textContent = el.checked ? 'mL used' : 'Grams used';
 			   clearChemLookupResult(qid);
-			   checkFormValidity();
-			   return;
+		   } else {
+			   ANSWERS[el.id] = el.value;
 		   }
-		   ANSWERS[el.id] = el.value;
+		   updateConditionalVisibility();
 		   checkFormValidity();
 	   });
 
@@ -600,6 +645,9 @@
 		for (const area of QUESTION_AREAS) {
 			for (const q of area.questions) {
 				if (q.type === 'label') continue;
+				const wrapper = document.getElementById('question-wrapper-' + q.id);
+				if (wrapper && wrapper.classList.contains('hidden')) continue;
+				if (!wrapper && !shouldShowQuestion(q)) continue;
 				if (!q.required) continue;
 				const val = ANSWERS[q.id];
 				if (q.type === 'dropdown') {
@@ -625,6 +673,7 @@
 		if (el && el.id) {
 			ANSWERS[el.id] = el.value;
 		}
+		updateConditionalVisibility();
 		checkFormValidity();
 	});
 
@@ -643,6 +692,9 @@
 		for (const area of QUESTION_AREAS) {
 			for (const q of area.questions) {
 				if (q.type === 'label') continue;
+				const wrapper = document.getElementById('question-wrapper-' + q.id);
+				if (wrapper && wrapper.classList.contains('hidden')) continue;
+				if (!wrapper && !shouldShowQuestion(q)) continue;
 				if (!q.required) continue;
 				const val = ANSWERS[q.id];
 				if (q.type === 'dropdown') {
