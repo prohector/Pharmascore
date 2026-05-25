@@ -27,15 +27,21 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 				}
 				const num = parseFloat(val);
 				if (isNaN(num)) continue;
+				// Find the best matching range. choose the matching range with highest score
+				let best = null;
 				for (const r of params.ranges) {
 					if (typeof r.max !== 'number' || typeof r.score !== 'number') continue;
 					if (num <= r.max) {
-						score = r.score;
-						ruleDetail = { type: 'threshold', matchedRange: r };
-						break;
+						if (best === null || r.score > best.score) best = r;
 					}
 				}
-				if (score === null) { score = 0; ruleDetail = { type: 'threshold', matchedRange: null }; }
+				if (best) {
+					score = best.score;
+					ruleDetail = { type: 'threshold', matchedRange: best };
+				} else {
+					score = 0;
+					ruleDetail = { type: 'threshold', matchedRange: null };
+				}
 			} else if (q.method === 'lookup' && (q.type === 'dropdown' || q.type === 'boolean')) {
 				if (!params || typeof params !== 'object') {
 					console.warn('Missing or invalid params for lookup question', q.id);
@@ -73,8 +79,11 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 				if (!dimScores[dim]) { dimScores[dim] = 0; dimWeights[dim] = 0; }
 				dimScores[dim] += score * weight;
 				dimWeights[dim] += weight;
+				// compute points on a 0-4 scale per question and weightedPoints using weight
+				const points = (score / 100) * 4;
+				const weightedPoints = points * weight;
 				if (!contributions[dim]) contributions[dim] = [];
-				contributions[dim].push({ id: q.id, text: q.text, rawAnswer: val, score: score, weight: weight, weighted: score * weight, ruleDetail });
+				contributions[dim].push({ id: q.id, text: q.text, rawAnswer: val, score: score, weight: weight, weighted: score * weight, points: points, weightedPoints: weightedPoints, ruleDetail });
 			}
 		}
 	}
@@ -92,10 +101,21 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 		}
 	}
 
-	// Build normalized (precise) scores map and output debug info
+	// Build normalized (precise) scores map based on 0-4 points per question
 	const normalizedScores = {};
+	const sectionPoints = {}; // holds totalWeightedPoints and sectionMaxPoints per dim
 	for (const dim of allDims) {
-		normalizedScores[dim] = (dimWeights[dim] > 0) ? ((dimScores[dim] || 0) / dimWeights[dim]) : 0;
+		const list = contributions[dim] || [];
+		const totalWeightedPoints = list.reduce((s, it) => s + (it.weightedPoints || 0), 0);
+		const sectionMaxPoints = (dimWeights[dim] || 0) * 4; // 4 points per weight unit
+		const normalizedPercent = sectionMaxPoints > 0 ? (totalWeightedPoints / sectionMaxPoints) * 100 : 0;
+		normalizedScores[dim] = normalizedPercent;
+		sectionPoints[dim] = { totalWeightedPoints, sectionMaxPoints };
+	}
+
+	// Use normalizedScores (from 0-100) as the final rounded result
+	for (const dim of allDims) {
+		result[dim] = Math.round(normalizedScores[dim] || 0);
 	}
 
 	// Debug output: structured per-dimension breakdown with exact per-answer scores
@@ -105,8 +125,9 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 		console.log('Raw weighted totals:', dimScores);
 		console.log('Total weights:', dimWeights);
 		for (const dim of allDims) {
-			const precise = (dimWeights[dim] > 0) ? ( (dimScores[dim] || 0) / dimWeights[dim] ) : 0;
-			console.group && console.group(dim + ' — final (rounded): ' + result[dim] + ' — precise: ' + precise.toFixed(2));
+			const preciseScoreAvg = (dimWeights[dim] > 0) ? ( (dimScores[dim] || 0) / dimWeights[dim] ) : 0;
+			const normalized = normalizedScores[dim] || 0;
+			console.group && console.group(dim + ' — final (rounded): ' + result[dim] + ' — precise average: ' + preciseScoreAvg.toFixed(2) + ' — normalized: ' + normalized.toFixed(2) + '%');
 			const list = contributions[dim] || [];
 			if (list.length) {
 				console.table(list.map(it => {
@@ -116,15 +137,18 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 						question: it.text,
 						answer: it.rawAnswer,
 						exactScore: Number((it.score).toFixed(4)),
+						points: Number((it.points || 0).toFixed(4)),
 						weight: it.weight,
+						weightedPoints: Number((it.weightedPoints || 0).toFixed(4)),
 						weighted: Number((it.weighted).toFixed(4)),
-						contributionToSection: Number((contributionToSection).toFixed(4))
-						,rule: JSON.stringify(it.ruleDetail)
+						contributionToSection: Number((contributionToSection).toFixed(4)),
+						rule: JSON.stringify(it.ruleDetail)
 					};
 				}));
 				// Human-readable per-question lines for quick verification
 				for (const it of list) {
 					const exact = Number(it.score).toFixed(2);
+					const pts = Number((it.points || 0).toFixed(2));
 					let ruleDesc = '';
 					const rd = it.ruleDetail;
 					if (rd) {
@@ -138,12 +162,14 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 							else ruleDesc = `(formula: ${rd.expr} with value ${rd.evaluatedWith})`;
 						}
 					}
-					console.log(`${it.id}: answered "${it.rawAnswer}" → ${exact}/100 ${ruleDesc}`);
+					console.log(`${it.id}: answered "${it.rawAnswer}" → ${exact}/100 → ${pts}/4 ${ruleDesc}`);
 				}
 			} else {
 				console.log('(no contributing questions for this category)');
 			}
-			console.log('weighted total:', dimScores[dim] || 0, 'total weight:', dimWeights[dim] || 0);
+			const sp = sectionPoints[dim] || { totalWeightedPoints: 0, sectionMaxPoints: 0 };
+			console.log('section points:', sp.totalWeightedPoints.toFixed(4), '/', sp.sectionMaxPoints.toFixed(4), '(' + (sp.sectionMaxPoints>0 ? ( (sp.totalWeightedPoints/sp.sectionMaxPoints*100).toFixed(2) + '%' ) : '0%') + ')');
+			console.log('weighted total (raw 0-100):', dimScores[dim] || 0, 'total weight:', dimWeights[dim] || 0);
 			console.groupEnd && console.groupEnd();
 		}
 		console.groupEnd && console.groupEnd();

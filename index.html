@@ -78,6 +78,7 @@
 	let currentTab = 0;
 	// Store answers by question id
 	const ANSWERS = {};
+	const SOLVENT_LISTS = {};
 	
 	// Retake Assessment button logic
 	document.addEventListener('DOMContentLoaded', () => {
@@ -113,6 +114,11 @@
 				const selected = document.querySelector(`input[name="${q.id}"]:checked`);
 				if (selected) ANSWERS[q.id] = selected.value;
 				else delete ANSWERS[q.id];
+				return;
+			}
+			if (q.type === 'solvent_calculator') {
+				const totalEl = document.getElementById(q.id + '_total');
+				if (totalEl) ANSWERS[q.id] = totalEl.value;
 				return;
 			}
 			if (q.type === 'chem_lookup') {
@@ -152,6 +158,12 @@
 				const falseEl = document.getElementById(q.id + '_false');
 				if (trueEl) trueEl.checked = value === 'true';
 				if (falseEl) falseEl.checked = value === 'false';
+				return;
+			}
+			if (q.type === 'solvent_calculator') {
+				const totalEl = document.getElementById(q.id + '_total');
+				if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
+				renderSolventList(q.id);
 				return;
 			}
 			if (q.type === 'chem_lookup') {
@@ -203,6 +215,22 @@
 		};
 	}
 
+	function getSolventCalcIds(questionId) {
+		return {
+			nameId: questionId + '_lookup_name',
+			priceId: questionId + '_lookup_price',
+			amountId: questionId + '_entry_amount',
+			wwpctId: questionId + '_entry_wwpct',
+			calcBtnId: questionId + '_calc',
+			mlId: questionId + '_ml',
+			errorId: questionId + '_lookup_error',
+			amountLabelId: questionId + '_amount_label',
+			priceLabelId: questionId + '_price_label',
+			addBtnId: questionId + '_add_btn',
+			wrapperId: questionId + '_solvent_calc'
+		};
+	}
+
 	function setChemLookupLink(questionId, link) {
 		const { linkId } = getChemLookupIds(questionId);
 		const linkEl = document.getElementById(linkId);
@@ -232,6 +260,42 @@
 		delete ANSWERS[questionId + '_price'];
 		delete ANSWERS[questionId + '_total'];
 		delete ANSWERS[questionId + '_link'];
+	}
+
+	function renderSolventList(questionId) {
+		const list = SOLVENT_LISTS[questionId] || [];
+		const listEl = document.getElementById(questionId + '_list');
+		const emptyEl = document.getElementById(questionId + '_list_empty');
+		const addBtn = document.getElementById(questionId + '_add_btn');
+		const warningEl = document.getElementById(questionId + '_max_warning');
+		if (listEl) {
+			listEl.innerHTML = list.map((entry, idx) => {
+				const priceLabel = entry.unit === 'mL' ? `USD/mL ${entry.price}` : `USD/g ${entry.price}`;
+				const amountLabel = entry.unit === 'mL' ? `${entry.amount} mL` : `${entry.amount} g`;
+				const wwpctLabel = entry.unit === 'g' ? (entry.wwpct || '') : 'N/A';
+				return `
+					<tr class="solvent-row">
+						<td class="solvent-cell solvent-name">${entry.name}</td>
+						<td class="solvent-cell">${priceLabel}</td>
+						<td class="solvent-cell">${amountLabel}</td>
+						<td class="solvent-cell">${wwpctLabel}</td>
+						<td class="solvent-cell solvent-cost">${entry.entryCost.toFixed(2)}</td>
+						<td class="solvent-cell solvent-action"><button type="button" class="btn-remove" data-solvent-remove="${questionId}" data-solvent-index="${idx}" aria-label="Remove solvent">&times;</button></td>
+					</tr>
+				`;
+			}).join('');
+		}
+		if (emptyEl) emptyEl.classList.toggle('hidden', list.length > 0);
+		if (addBtn) addBtn.disabled = list.length >= 10;
+		if (warningEl) {
+			if (list.length >= 10) {
+				warningEl.textContent = 'Maximum 10 solvents reached.';
+				warningEl.classList.remove('hidden');
+			} else {
+				warningEl.textContent = '';
+				warningEl.classList.add('hidden');
+			}
+		}
 	}
 
 	function updateChemLookupTotal(questionId) {
@@ -313,6 +377,71 @@
 			if (buttonEl) {
 				buttonEl.disabled = false;
 				buttonEl.textContent = 'Calculate';
+			}
+		}
+	}
+
+	async function calculateSolventLookup(questionId) {
+		const { nameId, priceId, mlId, errorId, calcBtnId, priceLabelId, amountLabelId, wrapperId, addBtnId } = getSolventCalcIds(questionId);
+		const nameEl = document.getElementById(nameId);
+		const priceEl = document.getElementById(priceId);
+		const mlCheckbox = document.getElementById(mlId);
+		const errorEl = document.getElementById(errorId);
+		const calcBtn = document.getElementById(calcBtnId);
+		const priceLabel = document.getElementById(priceLabelId);
+		const amountLabel = document.getElementById(amountLabelId);
+		const wrapper = document.getElementById(wrapperId);
+		const addBtn = document.getElementById(addBtnId);
+		const name = nameEl ? nameEl.value.trim() : '';
+		const useMl = mlCheckbox && mlCheckbox.checked;
+		if (priceLabel) priceLabel.textContent = useMl ? 'Price per mL' : 'Price per g';
+		if (amountLabel) amountLabel.textContent = useMl ? 'mL used' : 'Grams used';
+		if (!name) {
+			if (errorEl) {
+				errorEl.textContent = 'Enter a substance name first.';
+				errorEl.classList.remove('hidden');
+			}
+			return;
+		}
+		if (calcBtn) {
+			calcBtn.disabled = true;
+			calcBtn.textContent = 'Fetching...';
+		}
+		if (errorEl) {
+			errorEl.textContent = '';
+			errorEl.classList.add('hidden');
+		}
+		try {
+			console.log(`[solvent:${questionId}] fetching price for "${name}" unit=${useMl ? 'ml' : 'g'}`);
+			const lookupFn = window.lookupChemicalPrice;
+			if (typeof lookupFn !== 'function') throw new Error('Chemical lookup is not ready yet.');
+			const result = await lookupFn(name, 'GR', useMl ? 'ml' : 'g');
+			if (result.success) {
+				console.log(`[solvent:${questionId}] fetch success`, result);
+				if (priceEl) priceEl.value = result.price;
+				if (wrapper) {
+					wrapper.dataset.price = String(result.price);
+					wrapper.dataset.unit = useMl ? 'mL' : 'g';
+					wrapper.dataset.name = name;
+				}
+				if (addBtn) addBtn.disabled = false;
+			} else {
+				console.warn(`[solvent:${questionId}] fetch returned no price`, result);
+				if (errorEl) {
+					errorEl.textContent = result.error || 'No price found.';
+					errorEl.classList.remove('hidden');
+				}
+			}
+		} catch (err) {
+			console.error(`[solvent:${questionId}] fetch error`, err);
+			if (errorEl) {
+				errorEl.textContent = err.message || 'Failed to fetch price.';
+				errorEl.classList.remove('hidden');
+			}
+		} finally {
+			if (calcBtn) {
+				calcBtn.disabled = false;
+				calcBtn.textContent = 'Calculate';
 			}
 		}
 	}
@@ -442,6 +571,61 @@
 					   </div>
 					   <div id="${q.id}_error" class="error-message hidden"></div>
 				   `;
+			   } else if (q.type === 'solvent_calculator') {
+			   	   input = `
+					<div class="solvent-calc" id="${q.id}_solvent_calc">
+						<div class="chem-lookup-container">
+							<div class="chem-lookup-name-wrapper">
+								<input id="${q.id}_lookup_name" name="${q.id}_lookup_name" type="text" placeholder="Enter substance name..." class="form-input chem-lookup-name" autocomplete="off">
+								<label class="ml-label">
+									<input id="${q.id}_ml" type="checkbox" class="chem-lookup-ml">
+									<span class="ml-span">mL</span>
+								</label>
+							</div>
+							<button id="${q.id}_calc" data-solvent-question-id="${q.id}" type="button" class="btn-calculate">Calculate</button>
+						</div>
+						<div class="chem-lookup-price-section">
+							<div class="chem-lookup-price-wrapper">
+								<label id="${q.id}_price_label" class="input-label-small">Price per g</label>
+								<div class="chem-lookup-price-input-wrapper">
+									<input id="${q.id}_lookup_price" name="${q.id}_lookup_price" type="number" min="0" step="any" placeholder="Enter or fetch price" class="form-input chem-lookup-price">
+								</div>
+							</div>
+							<div class="chem-lookup-grams-wrapper">
+								<label id="${q.id}_amount_label" for="${q.id}_entry_amount" class="input-label-small">Grams used</label>
+								<input id="${q.id}_entry_amount" name="${q.id}_entry_amount" type="number" min="0" step="any" placeholder="0" class="form-input">
+							</div>
+						</div>
+						<div id="${q.id}_wwpct_wrapper" class="wwpct-wrapper hidden">
+							<label for="${q.id}_entry_wwpct" class="input-label-small">w/w%</label>
+							<input id="${q.id}_entry_wwpct" type="number" min="0" step="any" placeholder="w/w%" class="form-input">
+						</div>
+						<div id="${q.id}_lookup_error" class="error-message hidden"></div>
+						<button id="${q.id}_add_btn" type="button" class="btn-add" disabled>+</button>
+						<div class="solvent-table-wrap">
+							<table class="solvent-table" aria-label="Added solvent items">
+								<thead>
+									<tr>
+										<th>Name</th>
+										<th>Price</th>
+										<th>Amount</th>
+										<th>w/w%</th>
+										<th>Cost</th>
+										<th>Remove</th>
+									</tr>
+								</thead>
+								<tbody id="${q.id}_list"></tbody>
+							</table>
+						</div>
+						<div id="${q.id}_list_empty" class="solvent-empty">No solvents added yet</div>
+						<div id="${q.id}_max_warning" class="error-message hidden"></div>
+						<button id="${q.id}_calc_btn" type="button" class="btn-calculate">Calculate Total</button>
+						<div class="chem-lookup-total-section">
+							<label for="${q.id}_total" class="input-label-small">Total cost per run (USD)</label>
+							<input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+						</div>
+					</div>
+				`;
 			   }
 			   // Tooltip icon HTML if help_text exists
 			   let tooltip = '';
@@ -476,6 +660,108 @@
 		   calculateChemLookup(questionId);
 	   });
 
+	   document.addEventListener('click', async function(e) {
+		   const solventBtn = e.target && e.target.closest ? e.target.closest('button[data-solvent-question-id]') : null;
+		   if (solventBtn) {
+			   const questionId = solventBtn.getAttribute('data-solvent-question-id');
+			   if (questionId) await calculateSolventLookup(questionId);
+			   return;
+		   }
+
+		   const addBtn = e.target && e.target.closest ? e.target.closest('button[id$="_add_btn"]') : null;
+		   if (addBtn) {
+			   const questionId = addBtn.id.replace(/_add_btn$/, '');
+			   const list = SOLVENT_LISTS[questionId] || [];
+			   if (list.length >= 10) {
+				   renderSolventList(questionId);
+				   return;
+			   }
+			   const wrapper = document.getElementById(questionId + '_solvent_calc');
+			   const nameEl = document.getElementById(questionId + '_lookup_name');
+			   const priceEl = document.getElementById(questionId + '_lookup_price');
+			   const amountEl = document.getElementById(questionId + '_entry_amount');
+			   const wwpctEl = document.getElementById(questionId + '_entry_wwpct');
+			   const mlCheckbox = document.getElementById(questionId + '_ml');
+			   const name = nameEl ? nameEl.value.trim() : '';
+			   const unit = mlCheckbox && mlCheckbox.checked ? 'mL' : 'g';
+			   const price = priceEl ? parseFloat(priceEl.value) : NaN;
+			   const amount = amountEl ? parseFloat(amountEl.value) : NaN;
+			   const wwpct = wwpctEl ? wwpctEl.value : '';
+			   if (!name || isNaN(price) || isNaN(amount)) return;
+			   const entryCost = price * amount;
+			   list.push({ name, price, unit, amount, wwpct, entryCost });
+			   SOLVENT_LISTS[questionId] = list;
+			   if (amountEl) amountEl.value = '';
+			   if (wwpctEl) wwpctEl.value = '';
+			   renderSolventList(questionId);
+			   const totalEl = document.getElementById(questionId + '_total');
+			   if (totalEl && totalEl.value) {
+				   const total = list.reduce((s, it) => s + it.entryCost, 0);
+				   totalEl.value = total.toFixed(2);
+				   ANSWERS[questionId] = totalEl.value;
+			   }
+			   checkFormValidity();
+			   return;
+		   }
+
+		   const calcBtn = e.target && e.target.closest ? e.target.closest('button[id$="_calc_btn"]') : null;
+		   if (calcBtn) {
+			   const questionId = calcBtn.id.replace(/_calc_btn$/, '');
+			   const list = SOLVENT_LISTS[questionId] || [];
+			   const totalEl = document.getElementById(questionId + '_total');
+			   const total = list.reduce((s, it) => s + it.entryCost, 0);
+			   if (totalEl) totalEl.value = total.toFixed(2);
+			   ANSWERS[questionId] = total.toFixed(2);
+			   checkFormValidity();
+			   return;
+		   }
+
+		   const removeBtn = e.target && e.target.closest ? e.target.closest('button[data-solvent-remove]') : null;
+		   if (removeBtn) {
+			   const questionId = removeBtn.getAttribute('data-solvent-remove');
+			   const idx = parseInt(removeBtn.getAttribute('data-solvent-index'), 10);
+			   const list = SOLVENT_LISTS[questionId] || [];
+			   if (!isNaN(idx)) list.splice(idx, 1);
+			   SOLVENT_LISTS[questionId] = list;
+			   renderSolventList(questionId);
+			   const totalEl = document.getElementById(questionId + '_total');
+			   if (totalEl && totalEl.value) {
+				   const total = list.reduce((s, it) => s + it.entryCost, 0);
+				   totalEl.value = total.toFixed(2);
+				   ANSWERS[questionId] = totalEl.value;
+			   }
+			   checkFormValidity();
+			   return;
+		   }
+	   });
+
+	   document.addEventListener('change', function(e) {
+		   const el = e.target;
+		   if (!el || !el.id || !el.id.endsWith('_ml')) return;
+		   const questionId = el.id.replace(/_ml$/, '');
+		   const priceEl = document.getElementById(questionId + '_lookup_price');
+		   const addBtn = document.getElementById(questionId + '_add_btn');
+		   const errorEl = document.getElementById(questionId + '_lookup_error');
+		   const wwpctWrapper = document.getElementById(questionId + '_wwpct_wrapper');
+		   const wrapper = document.getElementById(questionId + '_solvent_calc');
+		   const priceLabel = document.getElementById(questionId + '_price_label');
+		   const amountLabel = document.getElementById(questionId + '_amount_label');
+		   if (priceLabel) priceLabel.textContent = el.checked ? 'Price per mL' : 'Price per g';
+		   if (amountLabel) amountLabel.textContent = el.checked ? 'mL used' : 'Grams used';
+		   if (priceEl) priceEl.value = '';
+		   if (addBtn) addBtn.disabled = true;
+		   if (errorEl) {
+			   errorEl.textContent = '';
+			   errorEl.classList.add('hidden');
+		   }
+		   if (wrapper) {
+			   delete wrapper.dataset.price;
+			   delete wrapper.dataset.unit;
+			   delete wrapper.dataset.name;
+		   }
+		   if (wwpctWrapper) wwpctWrapper.classList.toggle('hidden', el.checked);
+	   });
+
 	   document.addEventListener('input', function(e) {
 		   const el = e.target;
 		   if (!el || !el.id) return;
@@ -492,11 +778,31 @@
 			   updateChemLookupTotal(questionId);
 		   } else if (el.id.endsWith('_ml')) {
 			   const qid = el.id.slice(0, -3);
-			   const priceLabel = document.getElementById(qid + '_price_label');
-			   const gramsLabel = document.getElementById(qid + '_grams_label');
-			   if (priceLabel) priceLabel.textContent = el.checked ? 'Price per mL' : 'Price per g';
-			   if (gramsLabel) gramsLabel.textContent = el.checked ? 'mL used' : 'Grams used';
-			   clearChemLookupResult(qid);
+			   const isSolvent = document.getElementById(qid + '_solvent_calc');
+			   if (!isSolvent) {
+				   const priceLabel = document.getElementById(qid + '_price_label');
+				   const gramsLabel = document.getElementById(qid + '_grams_label');
+				   if (priceLabel) priceLabel.textContent = el.checked ? 'Price per mL' : 'Price per g';
+				   if (gramsLabel) gramsLabel.textContent = el.checked ? 'mL used' : 'Grams used';
+				   clearChemLookupResult(qid);
+			   }
+		   } else if (el.id.endsWith('_lookup_price') || el.id.endsWith('_lookup_name')) {
+			   const qid = el.id.replace(/_(lookup_price|lookup_name)$/, '');
+			   const wrapper = document.getElementById(qid + '_solvent_calc');
+			   if (wrapper) {
+				   const priceEl = document.getElementById(qid + '_lookup_price');
+				   const nameEl = document.getElementById(qid + '_lookup_name');
+				   const addBtn = document.getElementById(qid + '_add_btn');
+				   const price = priceEl ? parseFloat(priceEl.value) : NaN;
+				   const name = nameEl ? nameEl.value.trim() : '';
+				   if (addBtn) addBtn.disabled = !(name && !isNaN(price) && price >= 0);
+				   if (wrapper) {
+					   if (!isNaN(price)) wrapper.dataset.price = String(price);
+					   if (name) wrapper.dataset.name = name;
+				   }
+					   // Debug: manual price or name entered
+					   console.log(`[solvent:${qid}] manual input — name="${name}", price=${isNaN(price) ? 'N/A' : price}`);
+			}
 		   } else {
 			   ANSWERS[el.id] = el.value;
 		   }
