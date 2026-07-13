@@ -28,8 +28,17 @@
 		<h1>Pharmaceutical Lab Sustainability Assessment</h1>
 		<p>Academic Tool for Evaluating Lab Practices</p>
 	</header>
+
+	<section id="analysis-gate" class="analysis-gate">
+		<h2>Choose analysis mode</h2>
+		<p>Select how the questions should be weighted before starting the assessment.</p>
+		<div class="analysis-gate-actions">
+			<button id="routine-analysis-btn" type="button" class="analysis-choice-btn">Routine analysis</button>
+			<button id="advanced-analysis-btn" type="button" class="analysis-choice-btn">Advanced analysis</button>
+		</div>
+	</section>
 	<!-- Loading/Error UI -->
-	<div id="loading-message">Loading questionnaire...</div>
+	<div id="loading-message" class="hidden">Loading questionnaire...</div>
 	<div id="error-message" class="hidden"></div>
 
 	<!-- Progress Indicator -->
@@ -49,7 +58,13 @@
 
 	<!-- Main Form Section -->
 	<main>
+		<aside id="section-guidance" class="section-guidance" aria-live="polite">
+			<h3 id="guidance-title">How To Complete This Section</h3>
+			<p id="guidance-summary">Follow the prompts and enter values carefully.</p>
+			<ul id="guidance-steps"></ul>
+		</aside>
 		<h2 id="section-title">Solvents &amp; Energy</h2>
+		<p id="section-subtitle" class="section-subtitle">Please answer all required fields in this section.</p>
 		<form id="assessment-form" autocomplete="off">
 			<!-- Questions will be rendered here -->
 		</form>
@@ -71,6 +86,109 @@
 	<!-- =================== CONFIG: Question Definitions =================== -->
 	<script>
 	let QUESTION_AREAS = [];
+	let ANALYSIS_MODE = '';
+	let QUESTIONS_LOADED = false;
+	let ANALYSIS_GATE_CHOSEN = false;
+	let QUESTIONS_LOAD_FAILED = false;
+	let QUESTIONS_LOAD_ERROR = '';
+	let SOLVENT_OPTIONS = [];
+	let COLUMN_OPTIONS = [];
+	let BUFFER_OPTIONS = [];
+	let SOURCES_LOADED = false;
+	const SECTION_GUIDANCE = {
+		'Analytical Performance': {
+			summary: 'Enter your method performance values exactly as measured in your lab records.',
+			steps: [
+				'Use the same units shown in each question label.',
+				'If you are unsure, check your validation report before entering numbers.',
+				'Complete all required items before moving to the next section.'
+			]
+		},
+		'Practicality': {
+			summary: 'Describe how practical your method is in daily work conditions.',
+			steps: [
+				'Enter realistic times and sample counts from normal operation.',
+				'Use typical values, not best-case or one-off values.',
+				'Keep values consistent with your actual workflow.'
+			]
+		},
+		'Fixed costs': {
+			summary: 'This section captures one-time or infrastructure-related economic choices.',
+			steps: [
+				'Select the detector type that best matches your method setup.',
+				'If multiple detectors are used, choose the main one used for routine analysis.',
+				'Then continue to recurring costs for per-run calculations.'
+			]
+		},
+		Recurring: {
+			summary: 'Build the mobile phase composition and per-run recurring cost step by step.',
+			steps: [
+				'Add each solvent with its percentage and click Add.',
+				'Add each buffer with % w/mL relative to the water volume.',
+				'Review the lists and remove entries if needed before submitting.'
+			]
+		},
+		'Green assessment': {
+			summary: 'Provide information related to environmental impact and hazard profile.',
+			steps: [
+				'Choose the closest option for material usage practices.',
+				'Enter hazard values based on your documented solvent and reagent usage.',
+				'Double-check values before final submission.'
+			]
+		}
+	};
+
+	function updateSectionGuidance() {
+		const area = QUESTION_AREAS[currentTab];
+		if (!area) return;
+		const guidance = SECTION_GUIDANCE[area.title] || {
+			summary: 'Complete each required field in this section with your method data.',
+			steps: [
+				'Read each question label before entering values.',
+				'Use values from your records for consistency.',
+				'Move to the next tab when all required fields are complete.'
+			]
+		};
+		const titleEl = document.getElementById('guidance-title');
+		const summaryEl = document.getElementById('guidance-summary');
+		const stepsEl = document.getElementById('guidance-steps');
+		const subtitleEl = document.getElementById('section-subtitle');
+		if (titleEl) titleEl.textContent = `How To Complete: ${area.title}`;
+		if (summaryEl) summaryEl.textContent = guidance.summary;
+		if (subtitleEl) subtitleEl.textContent = guidance.summary;
+		if (stepsEl) {
+			stepsEl.innerHTML = guidance.steps.map(step => `<li>${step}</li>`).join('');
+		}
+	}
+
+	function showQuestionnaireIfReady() {
+		if (!ANALYSIS_GATE_CHOSEN || !QUESTIONS_LOADED) return;
+		document.getElementById('analysis-gate').classList.add('hidden');
+		document.getElementById('loading-message').classList.add('hidden');
+		document.querySelector('main').classList.remove('hidden');
+	}
+
+	function chooseAnalysisMode(mode) {
+		ANALYSIS_MODE = mode;
+		ANALYSIS_GATE_CHOSEN = true;
+		document.getElementById('analysis-gate').classList.add('hidden');
+		if (QUESTIONS_LOAD_FAILED) {
+			document.getElementById('loading-message').classList.add('hidden');
+			const errorMsg = document.getElementById('error-message');
+			errorMsg.textContent = QUESTIONS_LOAD_ERROR;
+			errorMsg.classList.remove('hidden');
+		} else if (!QUESTIONS_LOADED) {
+			document.getElementById('loading-message').classList.remove('hidden');
+		} else {
+			renderTabs();
+			renderQuestions();
+			updateSectionTitle();
+			updateProgress();
+			updateNavButtons();
+			checkFormValidity();
+		}
+		showQuestionnaireIfReady();
+	}
 	</script>
 
 	<!-- =================== RENDERER: Form Rendering =================== -->
@@ -79,6 +197,7 @@
 	// Store answers by question id
 	const ANSWERS = {};
 	const SOLVENT_LISTS = {};
+	const RECURRING_MIXES = {};
 	
 	// Retake Assessment button logic
 	document.addEventListener('DOMContentLoaded', () => {
@@ -119,6 +238,21 @@
 			if (q.type === 'solvent_calculator') {
 				const totalEl = document.getElementById(q.id + '_total');
 				if (totalEl) ANSWERS[q.id] = totalEl.value;
+				return;
+			}
+			if (q.type === 'recurring_cost_calculator') {
+				const columnEl = document.getElementById(q.id + '_column');
+				const runEl = document.getElementById(q.id + '_run');
+				const flowEl = document.getElementById(q.id + '_flow');
+				const totalEl = document.getElementById(q.id + '_total');
+				const mix = getRecurringMix(q.id);
+				if (columnEl) ANSWERS[q.id + '_column'] = columnEl.value;
+				if (runEl) ANSWERS[q.id + '_run'] = runEl.value;
+				if (flowEl) ANSWERS[q.id + '_flow'] = flowEl.value;
+				ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(mix.solvents || []);
+				ANSWERS[q.id + '_buffer_entries'] = JSON.stringify(mix.buffers || []);
+				if (totalEl) ANSWERS[q.id] = totalEl.value;
+				if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
 				return;
 			}
 			if (q.type === 'chem_lookup') {
@@ -164,6 +298,23 @@
 				const totalEl = document.getElementById(q.id + '_total');
 				if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
 				renderSolventList(q.id);
+				return;
+			}
+			if (q.type === 'recurring_cost_calculator') {
+				const columnEl = document.getElementById(q.id + '_column');
+				const runEl = document.getElementById(q.id + '_run');
+				const flowEl = document.getElementById(q.id + '_flow');
+				const totalEl = document.getElementById(q.id + '_total');
+				const mix = getRecurringMix(q.id);
+				mix.solvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
+				mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
+				if (columnEl && ANSWERS[q.id + '_column'] !== undefined) columnEl.value = ANSWERS[q.id + '_column'];
+				if (runEl && ANSWERS[q.id + '_run'] !== undefined) runEl.value = ANSWERS[q.id + '_run'];
+				if (flowEl && ANSWERS[q.id + '_flow'] !== undefined) flowEl.value = ANSWERS[q.id + '_flow'];
+				renderRecurringList(q.id, 'solvent');
+				renderRecurringList(q.id, 'buffer');
+				if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
+				updateRecurringCostTotal(q.id);
 				return;
 			}
 			if (q.type === 'chem_lookup') {
@@ -231,6 +382,126 @@
 		};
 	}
 
+	function getRecurringCostIds(questionId) {
+		return {
+			columnId: questionId + '_column',
+			runId: questionId + '_run',
+			flowId: questionId + '_flow',
+			solventSelectId: questionId + '_solvent_select',
+			solventPctId: questionId + '_solvent_pct',
+			solventAddBtnId: questionId + '_add_solvent',
+			solventListId: questionId + '_solvent_list',
+			solventEmptyId: questionId + '_solvent_empty',
+			bufferSelectId: questionId + '_buffer_select',
+			bufferPctId: questionId + '_buffer_pct',
+			bufferAddBtnId: questionId + '_add_buffer',
+			bufferListId: questionId + '_buffer_list',
+			bufferEmptyId: questionId + '_buffer_empty',
+			totalId: questionId + '_total',
+			wrapperId: questionId + '_recurring_cost_calc'
+		};
+	}
+
+	function getRecurringMix(questionId) {
+		if (!RECURRING_MIXES[questionId]) {
+			RECURRING_MIXES[questionId] = { solvents: [], buffers: [] };
+		}
+		return RECURRING_MIXES[questionId];
+	}
+
+	function parseRecurringEntries(serialized) {
+		if (!serialized || typeof serialized !== 'string') return [];
+		try {
+			const parsed = JSON.parse(serialized);
+			if (!Array.isArray(parsed)) return [];
+			return parsed.filter(item => item && item.name && !isNaN(Number(item.price)) && !isNaN(Number(item.pct))).map(item => ({
+				name: String(item.name),
+				price: Number(item.price),
+				pct: Number(item.pct)
+			}));
+		} catch {
+			return [];
+		}
+	}
+
+	function renderRecurringList(questionId, kind) {
+		const ids = getRecurringCostIds(questionId);
+		const mix = getRecurringMix(questionId);
+		const list = kind === 'buffer' ? mix.buffers : mix.solvents;
+		const listEl = document.getElementById(kind === 'buffer' ? ids.bufferListId : ids.solventListId);
+		const emptyEl = document.getElementById(kind === 'buffer' ? ids.bufferEmptyId : ids.solventEmptyId);
+		if (listEl) {
+			listEl.innerHTML = list.map((entry, idx) => `
+				<tr class="solvent-row">
+					<td class="solvent-cell solvent-name">${entry.name}</td>
+					<td class="solvent-cell">${entry.pct}%</td>
+					<td class="solvent-cell">${entry.price.toFixed(4)} /mL</td>
+					<td class="solvent-cell solvent-action"><button type="button" class="btn-remove" data-recurring-remove="${questionId}" data-recurring-kind="${kind}" data-recurring-index="${idx}" aria-label="Remove ${kind}">&times;</button></td>
+				</tr>
+			`).join('');
+		}
+		if (emptyEl) emptyEl.classList.toggle('hidden', list.length > 0);
+	}
+
+	function addRecurringEntry(questionId, kind) {
+		const ids = getRecurringCostIds(questionId);
+		const mix = getRecurringMix(questionId);
+		const selectEl = document.getElementById(kind === 'buffer' ? ids.bufferSelectId : ids.solventSelectId);
+		const pctEl = document.getElementById(kind === 'buffer' ? ids.bufferPctId : ids.solventPctId);
+		if (!selectEl || !pctEl) return;
+		const price = Number(selectEl.value);
+		const pct = Number(pctEl.value);
+		if (isNaN(price) || isNaN(pct) || pct <= 0 || pct > 100) return;
+		const name = selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : '';
+		const list = kind === 'buffer' ? mix.buffers : mix.solvents;
+		list.push({ name, price, pct });
+		pctEl.value = '';
+		renderRecurringList(questionId, kind);
+		updateRecurringCostTotal(questionId);
+	}
+
+	function renderMappedSelect(selectId, optionsMap, placeholder) {
+		const groups = optionsMap && typeof optionsMap === 'object' ? Object.entries(optionsMap) : [];
+		return `
+			<select id="${selectId}" name="${selectId}" class="form-input" required>
+				<option value="">${placeholder}</option>
+				${groups.map(([groupLabel, items]) => {
+					if (Array.isArray(items)) {
+						return `<optgroup label="${groupLabel}">${items.map(item => `<option value="${String(item.value)}">${item.label}</option>`).join('')}</optgroup>`;
+					}
+					return `<option value="${String(items)}">${groupLabel}</option>`;
+				}).join('')}
+			</select>
+		`;
+	}
+
+	function parseNamedCsvRows(csvText) {
+		const rows = parseCSV(csvText);
+		return rows.map(row => ({
+			...row,
+			price: row.price !== undefined && row.price !== '' ? Number(row.price) : NaN,
+			type: row.type || row.group || 'Other'
+		})).filter(row => row.name && !isNaN(row.price));
+	}
+
+	function groupRowsByType(rows) {
+		return rows.reduce((groups, row) => {
+			const group = row.type || 'Other';
+			if (!groups[group]) groups[group] = [];
+			groups[group].push({ label: row.name, value: row.price, length: row.length || row.length_mm || '' });
+			return groups;
+		}, {});
+	}
+
+	function groupColumnsByLength(rows) {
+		return rows.reduce((groups, row) => {
+			const lengthLabel = row.length_group || row.type || `${row.length_mm || row.length || 'Other'} mm`;
+			if (!groups[lengthLabel]) groups[lengthLabel] = [];
+			groups[lengthLabel].push({ label: row.name, value: row.price });
+			return groups;
+		}, {});
+	}
+
 	function setChemLookupLink(questionId, link) {
 		const { linkId } = getChemLookupIds(questionId);
 		const linkEl = document.getElementById(linkId);
@@ -260,6 +531,61 @@
 		delete ANSWERS[questionId + '_price'];
 		delete ANSWERS[questionId + '_total'];
 		delete ANSWERS[questionId + '_link'];
+	}
+
+	function updateRecurringCostTotal(questionId) {
+		const { columnId, runId, flowId, totalId } = getRecurringCostIds(questionId);
+		const columnEl = document.getElementById(columnId);
+		const runEl = document.getElementById(runId);
+		const flowEl = document.getElementById(flowId);
+		const totalEl = document.getElementById(totalId);
+		const columnCost = parseFloat(columnEl ? columnEl.value : '');
+		const runMinutes = parseFloat(runEl ? runEl.value : '');
+		const flowRate = parseFloat(flowEl ? flowEl.value : '');
+		const mix = getRecurringMix(questionId);
+		const solvents = Array.isArray(mix.solvents) ? mix.solvents : [];
+		const buffers = Array.isArray(mix.buffers) ? mix.buffers : [];
+		let total = '';
+		if (!isNaN(columnCost) && !isNaN(runMinutes) && !isNaN(flowRate) && solvents.length > 0) {
+			const totalVolumeMl = runMinutes * flowRate;
+			const solventCost = solvents.reduce((sum, entry) => sum + (totalVolumeMl * (entry.pct / 100) * entry.price), 0);
+			const waterPct = solvents.reduce((sum, entry) => sum + (entry.name.toLowerCase().includes('water') ? entry.pct : 0), 0);
+			const waterVolumeMl = totalVolumeMl * (waterPct / 100);
+			const bufferCost = buffers.reduce((sum, entry) => sum + (waterVolumeMl * (entry.pct / 100) * entry.price), 0);
+			const variableCost = solventCost + bufferCost;
+			total = (columnCost + variableCost).toFixed(2);
+			console.groupCollapsed && console.groupCollapsed(`Recurring cost calculation: ${questionId}`);
+			console.log('column cost', columnCost);
+			console.log('run minutes', runMinutes);
+			console.log('flow rate', flowRate);
+			console.log('total mobile phase volume (mL)', totalVolumeMl);
+			console.log('solvent entries', solvents);
+			console.log('solvent subtotal', solventCost);
+			console.log('water percentage from solvents', waterPct);
+			console.log('water volume for buffer basis (mL)', waterVolumeMl);
+			console.log('buffer entries', buffers);
+			console.log('buffer subtotal', bufferCost);
+			console.log('variable cost', variableCost);
+			console.log('total recurring cost', Number(total));
+			console.groupEnd && console.groupEnd();
+		}
+		if (totalEl) totalEl.value = total;
+		if (!isNaN(columnCost)) ANSWERS[questionId + '_column'] = String(columnCost);
+		else delete ANSWERS[questionId + '_column'];
+		if (!isNaN(runMinutes)) ANSWERS[questionId + '_run'] = String(runMinutes);
+		else delete ANSWERS[questionId + '_run'];
+		if (!isNaN(flowRate)) ANSWERS[questionId + '_flow'] = String(flowRate);
+		else delete ANSWERS[questionId + '_flow'];
+		ANSWERS[questionId + '_solvent_entries'] = JSON.stringify(solvents);
+		ANSWERS[questionId + '_buffer_entries'] = JSON.stringify(buffers);
+		if (total !== '') {
+			ANSWERS[questionId] = total;
+			ANSWERS[questionId + '_total'] = total;
+		} else {
+			delete ANSWERS[questionId];
+			delete ANSWERS[questionId + '_total'];
+		}
+		return total;
 	}
 
 	function renderSolventList(questionId) {
@@ -483,6 +809,15 @@
 			});
 		}
 		delete ANSWERS[q.id];
+		if (q.type === 'recurring_cost_calculator') {
+			delete ANSWERS[q.id + '_column'];
+			delete ANSWERS[q.id + '_run'];
+			delete ANSWERS[q.id + '_flow'];
+			delete ANSWERS[q.id + '_solvent_entries'];
+			delete ANSWERS[q.id + '_buffer_entries'];
+			delete ANSWERS[q.id + '_total'];
+			RECURRING_MIXES[q.id] = { solvents: [], buffers: [] };
+		}
 		if (q.type === 'chem_lookup') {
 			delete ANSWERS[q.id + '_name'];
 			delete ANSWERS[q.id + '_price'];
@@ -540,6 +875,83 @@
 				   input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${q.unit || ''}</span></div>`;
 			   } else if (q.type === 'text') {
 				   input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
+			} else if (q.type === 'recurring_cost_calculator') {
+				const columnGroups = groupColumnsByLength(COLUMN_OPTIONS);
+				const solventGroups = groupRowsByType(SOLVENT_OPTIONS);
+				const bufferGroups = groupRowsByType(BUFFER_OPTIONS);
+				input = `
+					<div class="recurring-cost-calc" id="${q.id}_recurring_cost_calc">
+						<div class="recurring-cost-grid">
+							<div class="recurring-cost-field">
+								<label id="${q.id}_column_label" for="${q.id}_column" class="input-label-small">Column</label>
+								${renderMappedSelect(q.id + '_column', columnGroups, 'Select column')}
+							</div>
+							<div class="recurring-cost-field">
+								<label id="${q.id}_run_label" for="${q.id}_run" class="input-label-small">Total run (mins)</label>
+								<input id="${q.id}_run" name="${q.id}_run" type="number" min="0" step="any" placeholder="0" class="form-input">
+							</div>
+							<div class="recurring-cost-field">
+								<label id="${q.id}_flow_label" for="${q.id}_flow" class="input-label-small">Mobile phase flow rate (mL/min)</label>
+								<input id="${q.id}_flow" name="${q.id}_flow" type="number" min="0" step="any" placeholder="0" class="form-input">
+							</div>
+						</div>
+						<div class="recurring-group recurring-group-solvent">
+							<div class="recurring-group-title">Solvent Composition</div>
+							<div class="recurring-inline-add">
+								<span class="input-label-small">Add solvent</span>
+								${renderMappedSelect(q.id + '_solvent_select', solventGroups, 'Select solvent')}
+								<span class="input-label-small">at</span>
+								<input id="${q.id}_solvent_pct" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
+								<span class="input-label-small">%</span>
+								<button id="${q.id}_add_solvent" type="button" class="btn-add">Add</button>
+							</div>
+							<div class="solvent-table-wrap">
+								<table class="solvent-table" aria-label="Added solvent composition">
+									<thead>
+										<tr>
+											<th>Solvent</th>
+											<th>Percent</th>
+											<th>Price</th>
+											<th>Remove</th>
+										</tr>
+									</thead>
+									<tbody id="${q.id}_solvent_list"></tbody>
+								</table>
+							</div>
+							<div id="${q.id}_solvent_empty" class="solvent-empty">No solvents added yet</div>
+						</div>
+
+						<div class="recurring-group recurring-group-buffer">
+							<div class="recurring-group-title">Buffer Additions</div>
+							<div class="recurring-inline-add recurring-buffer-add">
+								<span class="input-label-small">Add buffer</span>
+								${renderMappedSelect(q.id + '_buffer_select', bufferGroups, 'Select buffer')}
+								<span class="input-label-small">at</span>
+								<input id="${q.id}_buffer_pct" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
+								<span class="input-label-small">% w/mL</span>
+								<button id="${q.id}_add_buffer" type="button" class="btn-add">Add</button>
+							</div>
+							<div class="solvent-table-wrap">
+								<table class="solvent-table" aria-label="Added buffer composition">
+									<thead>
+										<tr>
+											<th>Buffer</th>
+											<th>Percent</th>
+											<th>Price</th>
+											<th>Remove</th>
+										</tr>
+									</thead>
+									<tbody id="${q.id}_buffer_list"></tbody>
+								</table>
+							</div>
+							<div id="${q.id}_buffer_empty" class="solvent-empty">No buffers added yet</div>
+						</div>
+						<div class="chem-lookup-total-section">
+							<label for="${q.id}_total" class="input-label-small">Total recurring cost (USD)</label>
+							<input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+						</div>
+					</div>
+				`;
 			   } else if (q.type === 'chem_lookup') {
 				   input = `
 					   <div class="chem-lookup-container">
@@ -661,6 +1073,29 @@
 	   });
 
 	   document.addEventListener('click', async function(e) {
+		   const recurringAddBtn = e.target && e.target.closest ? e.target.closest('button[id$="_add_solvent"], button[id$="_add_buffer"]') : null;
+		   if (recurringAddBtn) {
+			   const isBuffer = recurringAddBtn.id.endsWith('_add_buffer');
+			   const questionId = recurringAddBtn.id.replace(/_(add_solvent|add_buffer)$/, '');
+			   addRecurringEntry(questionId, isBuffer ? 'buffer' : 'solvent');
+			   checkFormValidity();
+			   return;
+		   }
+
+		   const recurringRemoveBtn = e.target && e.target.closest ? e.target.closest('button[data-recurring-remove]') : null;
+		   if (recurringRemoveBtn) {
+			   const questionId = recurringRemoveBtn.getAttribute('data-recurring-remove');
+			   const kind = recurringRemoveBtn.getAttribute('data-recurring-kind');
+			   const idx = parseInt(recurringRemoveBtn.getAttribute('data-recurring-index'), 10);
+			   const mix = getRecurringMix(questionId);
+			   const list = kind === 'buffer' ? mix.buffers : mix.solvents;
+			   if (!isNaN(idx)) list.splice(idx, 1);
+			   renderRecurringList(questionId, kind === 'buffer' ? 'buffer' : 'solvent');
+			   updateRecurringCostTotal(questionId);
+			   checkFormValidity();
+			   return;
+		   }
+
 		   const solventBtn = e.target && e.target.closest ? e.target.closest('button[data-solvent-question-id]') : null;
 		   if (solventBtn) {
 			   const questionId = solventBtn.getAttribute('data-solvent-question-id');
@@ -737,7 +1172,17 @@
 
 	   document.addEventListener('change', function(e) {
 		   const el = e.target;
-		   if (!el || !el.id || !el.id.endsWith('_ml')) return;
+		   if (!el || !el.id) return;
+		   if (el.id.endsWith('_column') || el.id.endsWith('_solvent') || el.id.endsWith('_buffer')) {
+			   ANSWERS[el.id] = el.value;
+			   const qid = el.id.replace(/_(column|solvent|buffer)$/, '');
+			   if (document.getElementById(qid + '_recurring_cost_calc')) {
+				   updateRecurringCostTotal(qid);
+				   checkFormValidity();
+			   }
+			   return;
+		   }
+		   if (!el.id.endsWith('_ml')) return;
 		   const questionId = el.id.replace(/_ml$/, '');
 		   const priceEl = document.getElementById(questionId + '_lookup_price');
 		   const addBtn = document.getElementById(questionId + '_add_btn');
@@ -768,6 +1213,18 @@
 		   if (el.matches('input[type="radio"][data-boolean-id]')) {
 			   const qid = el.getAttribute('data-boolean-id');
 			   if (qid) ANSWERS[qid] = el.value;
+		   } else if (el.id.endsWith('_run') || el.id.endsWith('_flow')) {
+			   const qid = el.id.replace(/_(run|flow)$/, '');
+			   if (document.getElementById(qid + '_recurring_cost_calc')) {
+				   ANSWERS[el.id] = el.value;
+				   updateRecurringCostTotal(qid);
+			   } else {
+				   ANSWERS[el.id] = el.value;
+			   }
+		   } else if (el.id.endsWith('_buffer')) {
+			   const qid = el.id.replace(/_buffer$/, '');
+			   ANSWERS[el.id] = el.value;
+			   if (document.getElementById(qid + '_recurring_cost_calc')) updateRecurringCostTotal(qid);
 		   } else if (el.id.endsWith('_name')) {
 			   const questionId = el.id.slice(0, -5);
 			   clearChemLookupResult(questionId);
@@ -812,6 +1269,7 @@
 
 	function updateSectionTitle() {
 		document.getElementById('section-title').textContent = QUESTION_AREAS[currentTab].title;
+		updateSectionGuidance();
 	}
 
 	function updateProgress() {
@@ -886,9 +1344,30 @@
 		const loadingMsg = document.getElementById('loading-message');
 		const errorMsg = document.getElementById('error-message');
 		try {
-			const res = await fetch('config/questions.csv');
-			if (!res.ok) throw new Error('File not found');
-			const csvText = await res.text();
+			const [questionsRes, solventsRes, columnsRes, buffersRes] = await Promise.all([
+				fetch('config/questions.csv'),
+				fetch('config/solvents.csv'),
+				fetch('config/columns.csv'),
+				fetch('config/buffers.csv')
+			]);
+			if (!questionsRes.ok) throw new Error('Question file not found');
+			if (!solventsRes.ok) throw new Error('Solvent file not found');
+			if (!columnsRes.ok) throw new Error('Column file not found');
+			if (!buffersRes.ok) throw new Error('Buffer file not found');
+			const [csvText, solventsText, columnsText, buffersText] = await Promise.all([
+				questionsRes.text(),
+				solventsRes.text(),
+				columnsRes.text(),
+				buffersRes.text()
+			]);
+			SOLVENT_OPTIONS = parseNamedCsvRows(solventsText);
+			COLUMN_OPTIONS = parseNamedCsvRows(columnsText);
+			BUFFER_OPTIONS = parseNamedCsvRows(buffersText);
+			console.groupCollapsed && console.groupCollapsed('Loaded recurring cost sources');
+			console.log('Solvents:', SOLVENT_OPTIONS);
+			console.log('Columns:', COLUMN_OPTIONS);
+			console.log('Buffers:', BUFFER_OPTIONS);
+			console.groupEnd && console.groupEnd();
 			const allRows = parseCSV(csvText);
 			// Group by 'section' column
 			const sectionMap = {};
@@ -911,19 +1390,28 @@
 				questions
 			}));
 			if (!QUESTION_AREAS.length) throw new Error('No questions found in CSV.');
-			loadingMsg.style.display = 'none';
-			errorMsg.style.display = 'none';
-			document.querySelector('main').classList.remove('hidden');
-			renderTabs();
-			renderQuestions();
-			updateSectionTitle();
-			updateProgress();
-			updateNavButtons();
-			checkFormValidity();
+			SOURCES_LOADED = true;
+			QUESTIONS_LOADED = true;
+			QUESTIONS_LOAD_FAILED = false;
+			QUESTIONS_LOAD_ERROR = '';
+			loadingMsg.classList.add('hidden');
+			errorMsg.classList.add('hidden');
+			showQuestionnaireIfReady();
+			if (ANALYSIS_GATE_CHOSEN) {
+				renderTabs();
+				renderQuestions();
+				updateSectionTitle();
+				updateProgress();
+				updateNavButtons();
+				checkFormValidity();
+			}
 		} catch (err) {
-			loadingMsg.style.display = 'none';
-			errorMsg.textContent = 'Failed to load questionnaire: ' + err.message + '\n(If running locally, use Live Server or a local web server)';
-			errorMsg.style.display = '';
+			QUESTIONS_LOADED = false;
+			QUESTIONS_LOAD_FAILED = true;
+			QUESTIONS_LOAD_ERROR = 'Failed to load questionnaire: ' + err.message + '\n(If running locally, use Live Server or a local web server)';
+			loadingMsg.classList.add('hidden');
+			errorMsg.textContent = QUESTIONS_LOAD_ERROR;
+			if (ANALYSIS_GATE_CHOSEN) errorMsg.classList.remove('hidden');
 			document.querySelector('main').classList.add('hidden');
 		}
 	}
@@ -931,6 +1419,8 @@
 	// Initial render
 	document.addEventListener('DOMContentLoaded', () => {
 		document.querySelector('main').classList.add('hidden');
+		document.getElementById('routine-analysis-btn').addEventListener('click', () => chooseAnalysisMode('routine'));
+		document.getElementById('advanced-analysis-btn').addEventListener('click', () => chooseAnalysisMode('advanced'));
 		loadQuestionsFromCSV();
 	});
 	</script>
@@ -960,7 +1450,7 @@
 					if (!val || val === '') { allValid = false; break; }
 				} else if (q.type === 'boolean') {
 					if (val !== 'true' && val !== 'false') { allValid = false; break; }
-				} else if (q.type === 'number' || q.type === 'chem_lookup') {
+				} else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator') {
 					if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
 				} else if (q.type === 'text') {
 					if (!val || !val.trim()) { allValid = false; break; }
@@ -1007,7 +1497,7 @@
 					if (!val || val === '') { allValid = false; break; }
 				} else if (q.type === 'boolean') {
 					if (val !== 'true' && val !== 'false') { allValid = false; break; }
-				} else if (q.type === 'number' || q.type === 'chem_lookup') {
+				} else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator') {
 					if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
 				} else if (q.type === 'text') {
 					if (!val || !val.trim()) { allValid = false; break; }
@@ -1022,7 +1512,7 @@
 		document.querySelector('main').classList.add('hidden');
 		document.getElementById('results-section').classList.remove('hidden');
 		// Calculate and show scores
-		const scores = calculateScores(QUESTION_AREAS, ANSWERS);
+		const scores = calculateScores(QUESTION_AREAS, ANSWERS, ANALYSIS_MODE);
 		renderResultsGraphic(scores);
 		document.getElementById('debug-scores').textContent = 'Scores: ' + JSON.stringify(scores);
 	});
@@ -1058,6 +1548,33 @@
 					   }
 				   } else if (q.type === 'text') {
 					   val = 'debug';
+					   } else if (q.type === 'recurring_cost_calculator') {
+						   const columnValues = COLUMN_OPTIONS.length ? COLUMN_OPTIONS.map(it => it.price) : [100, 250, 500];
+						   const solventRows = SOLVENT_OPTIONS.length ? SOLVENT_OPTIONS : [{ name: 'Water', price: 0.01 }, { name: 'Methanol', price: 0.08 }];
+						   const bufferRows = BUFFER_OPTIONS.length ? BUFFER_OPTIONS : [{ name: 'Formic acid', price: 0.02 }];
+						   const column = columnValues[Math.floor(Math.random() * columnValues.length)];
+						   const run = (Math.random() * 30 + 5).toFixed(1);
+						   const flow = (Math.random() * 3 + 0.5).toFixed(2);
+						   const water = solventRows.find(s => s.name && s.name.toLowerCase().includes('water')) || solventRows[0];
+						   const organic = solventRows.find(s => s !== water) || solventRows[0];
+						   const buffer = bufferRows[Math.floor(Math.random() * bufferRows.length)];
+						   const solventEntries = [
+							   { name: water.name, price: Number(water.price), pct: 60 },
+							   { name: organic.name, price: Number(organic.price), pct: 40 }
+						   ];
+						   const bufferEntries = [
+							   { name: buffer.name, price: Number(buffer.price), pct: 10 }
+						   ];
+						   ANSWERS[q.id + '_column'] = String(column);
+						   ANSWERS[q.id + '_run'] = run;
+						   ANSWERS[q.id + '_flow'] = flow;
+						   ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(solventEntries);
+						   ANSWERS[q.id + '_buffer_entries'] = JSON.stringify(bufferEntries);
+						   const totalVolume = Number(run) * Number(flow);
+						   const solventSubtotal = solventEntries.reduce((sum, item) => sum + (totalVolume * (item.pct / 100) * item.price), 0);
+						   const waterVolume = totalVolume * 0.6;
+						   const bufferSubtotal = bufferEntries.reduce((sum, item) => sum + (waterVolume * (item.pct / 100) * item.price), 0);
+						   val = (Number(column) + solventSubtotal + bufferSubtotal).toFixed(2);
 				   } else if (q.type === 'boolean') {
 					   if (q.method === 'lookup' && params && typeof params === 'object') {
 						   const keys = Object.keys(params).filter(k => k === 'true' || k === 'false');
@@ -1074,6 +1591,21 @@
 					   const falseEl = document.getElementById(q.id + '_false');
 					   if (trueEl) trueEl.checked = val === 'true';
 					   if (falseEl) falseEl.checked = val === 'false';
+					   } else if (q.type === 'recurring_cost_calculator') {
+						   const columnEl = document.getElementById(q.id + '_column');
+						   const runEl = document.getElementById(q.id + '_run');
+						   const flowEl = document.getElementById(q.id + '_flow');
+						   const totalEl = document.getElementById(q.id + '_total');
+						   if (columnEl) columnEl.value = ANSWERS[q.id + '_column'];
+						   if (runEl) runEl.value = ANSWERS[q.id + '_run'];
+						   if (flowEl) flowEl.value = ANSWERS[q.id + '_flow'];
+						   if (totalEl) totalEl.value = ANSWERS[q.id];
+						   const mix = getRecurringMix(q.id);
+						   mix.solvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
+						   mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
+						   renderRecurringList(q.id, 'solvent');
+						   renderRecurringList(q.id, 'buffer');
+						   updateRecurringCostTotal(q.id);
 				   }
 			   }
 		   }

@@ -1,0 +1,7 @@
+type,name,price
+Aqueous,Water,0.01
+Aqueous,Buffer mix,0.03
+Organic,Methanol,0.08
+Organic,Acetonitrile,0.12
+Halogenated,Dichloromethane,0.15
+Halogenated,Chloroform,0.18

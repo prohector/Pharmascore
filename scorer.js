@@ -1,5 +1,12 @@
 //Scoring engine using dimension, method, params, and weight columns
-function calculateScores(QUESTION_AREAS, ANSWERS) {
+function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
+	function getQuestionWeight(q) {
+		const modeKey = analysisMode === 'routine' ? 'weight_routine' : 'weight_advanced';
+		const modeWeight = parseFloat(q[modeKey]);
+		if (!isNaN(modeWeight)) return modeWeight;
+		const weight = parseFloat(q.weight);
+		return isNaN(weight) ? 1 : weight;
+	}
 	const dimScores = {};
 	const dimWeights = {};
 	const contributions = {}; // per-dimension list of question contributions for debugging
@@ -9,8 +16,7 @@ function calculateScores(QUESTION_AREAS, ANSWERS) {
 			if (!dim) continue;
 			let score = null;
 			let ruleDetail = null;
-			let weight = parseFloat(q.weight);
-			if (isNaN(weight)) weight = 1;
+			const weight = getQuestionWeight(q);
 			if (!q.method || !q.params) continue;
 			let params;
 			try {

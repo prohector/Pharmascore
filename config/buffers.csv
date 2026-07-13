@@ -1,0 +1,5 @@
+type,name,price
+Acidic,Formic acid,0.02
+Acidic,Acetic acid,0.015
+Neutral,Ammonium acetate,0.03
+Basic,Ammonium hydroxide,0.04
