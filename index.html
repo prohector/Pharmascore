@@ -95,6 +95,186 @@
 	let COLUMN_OPTIONS = [];
 	let BUFFER_OPTIONS = [];
 	let SOURCES_LOADED = false;
+	const FALLBACK_COLUMNS_CSV = `Type,Length,Diameter,Price (avg),Full name and characteristics
+C18,50 mm,4.6 mm,350 €,"C18, Zorbax SB-C18, Agilent (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,500 €,"C18, Zorbax SB-C18, Agilent (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,750 €,"C18, Zorbax SB-C18, Agilent (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1000 €,"C18, Zorbax SB-C18, Agilent (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,350 €,"C18, Zorbax XDB-C18, Agilent (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,500 €,"C18, Zorbax XDB-C18, Agilent (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,750 €,"C18, Zorbax XDB-C18, Agilent (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1000 €,"C18, Zorbax XDB-C18, Agilent (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,550 €,"C18, Waters XBridge (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,800 €,"C18, Waters XBridge, (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,1100 €,"C18, Waters XBridge, (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1500 €,"C18, Waters XBridge, (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,300 €,"C18, Waters SunFire, (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,425 €,"C18, Waters SunFire, (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,650 €,"C18, Waters SunFire, Waters (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,850 €,"C18, Waters SunFire, Waters (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,375 €,"C18, Waters Symmetry, Waters (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,525 €,"C18, Waters Symmetry, Waters (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,750 €,"C18, Waters Symmetry, Waters (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1050 €,"C18, Waters Symmetry, Waters (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,300 €,"C18, Luna, Phenomenex (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,425 €,"C18, Luna, Phenomenex (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,650 €,"C18, Luna, Phenomenex (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,850 €,"C18, Luna , Phenomenex (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,425 €,"C18, Kinetex, Phenomenex (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,600 €,"C18, Kinetex, Phenomenex (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,850 €,"C18, Kinetex, Phenomenex (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1150 €,"C18, Kinetex, Phenomenex (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,425 €,"C18, Hypersil GOLD, Thermo (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,600 €,"C18, Hypersil GOLD, Thermo (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,850 €,"C18, Hypersil GOLD, Thermo (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1150 €,"C18, Hypersil GOLD, Thermo (250 × 4.6 mm), 3–5 μm"
+C8,50 mm,4.6 mm,550 €,"C8, Waters XBridge, (50 × 4.6 mm), 3–5 μm"
+C8,100 mm,4.6 mm,800 €,"C8, Waters XBridge, (100 × 4.6 mm), 3–5 μm"
+C8,150 mm,4.6 mm,1100 €,"C8, Waters XBridge, (150 × 4.6 mm), 3–5 μm"
+C8,250 mm,4.6 mm,1500 €,"C8, Waters XBridge, (250 × 4.6 mm), 3–5 μm"
+C8,50 mm,4.6 mm,300 €,"C8, Luna, Phenomenex (50 × 4.6 mm), 3–5 μm"
+C8,100 mm,4.6 mm,425 €,"C8, Luna, Phenomenex (100 × 4.6 mm), 3–5 μm"
+C8,150 mm,4.6 mm,650 €,"C8, Luna, Phenomenex (150 × 4.6 mm), 3–5 μm"
+C8,250 mm,4.6 mm,850 €,"C8, Luna, Phenomenex (250 × 4.6 mm), 3–5 μm"
+C8,50 mm,4.6 mm,425 €,"C8, Hypersil GOLD, Thermo (50 × 4.6 mm), 3–5 μm"
+C8,100 mm,4.6 mm,600 €,"C8, Hypersil GOLD, Thermo (100 × 4.6 mm), 3–5 μm"
+C8,150 mm,4.6 mm,850 €,"C8, Hypersil GOLD, Thermo (150 × 4.6 mm), 3–5 μm"
+C8,250 mm,4.6 mm,1150 €,"C8, Hypersil GOLD, Thermo (250 × 4.6 mm), 3–5 μm"
+Phenyl,50 mm,4.6 mm,750 €,"Phenyl, BEH Phenyl, Waters (50 × 4.6 mm), 3–5 μm"
+Phenyl,100 mm,4.6 mm,1100 €,"Phenyl, BEH Phenyl, Waters (100 × 4.6 mm), 3–5 μm"
+Phenyl,150 mm,4.6 mm,1350 €,"Phenyl, BEH Phenyl, Waters (150 × 4.6 mm), 3–5 μm"
+Phenyl,250 mm,4.6 mm,1750 €,"Phenyl, BEH Phenyl, Waters (250 × 4.6 mm), 3–5 μm"
+Phenyl-Hexyl,50 mm,4.6 mm,425 €,"Phenyl-Hexyl, Kinetex, Phenomenex (50 × 4.6 mm), 3–5 μm"
+Phenyl-Hexyl,100 mm,4.6 mm,600 €,"Phenyl-Hexyl, Kinetex, Phenomenex (100 × 4.6 mm), 3–5 μm"
+Phenyl-Hexyl,150 mm,4.6 mm,850 €,"Phenyl-Hexyl, Kinetex, Phenomenex (150 × 4.6 mm), 3–5 μm"
+Phenyl-Hexyl,250 mm,4.6 mm,1150 €,"Phenyl-Hexyl, Kinetex, Phenomenex (250 × 4.6 mm), 3–5 μm"
+C4,50 mm,4.6 mm,750 €,"C4, BEH, Waters (50 × 4.6 mm), 3–5 μm"
+C4,100 mm,4.6 mm,1100 €,"C4, BEH, Waters (100 × 4.6 mm), 3–5 μm"
+C4,150 mm,4.6 mm,1350 €,"C4, BEH, Waters (150 × 4.6 mm), 3–5 μm"
+C4,250 mm,4.6 mm,1750 €,"C4, BEH, Waters (250 × 4.6 mm), 3–5 μm"
+HILIC,50 mm,4.6 mm,750 €,"HILIC, BEH Amide, Waters (50 × 4.6 mm), 3–5 μm"
+HILIC,100 mm,4.6 mm,1100 €,"HILIC, BEH Amide, Waters (100 × 4.6 mm), 3–5 μm"
+HILIC,150 mm,4.6 mm,1350 €,"HILIC, BEH Amide, Waters (150 × 4.6 mm), 3–5 μm"
+HILIC,250 mm,4.6 mm,1750 €,"HILIC, BEH Amide, Waters (250 × 4.6 mm), 3–5 μm"
+HILIC,50 mm,4.6 mm,425 €,"HILIC, Accucore HILIC, Thermo (50 × 4.6 mm), 3–5 μm"
+HILIC,100 mm,4.6 mm,600 €,"HILIC, Accucore HILIC, Thermo (100 × 4.6 mm), 3–5 μm"
+HILIC,150 mm,4.6 mm,850 €,"HILIC, Accucore HILIC, Thermo (150 × 4.6 mm), 3–5 μm"
+HILIC,250 mm,4.6 mm,1150 €,"HILIC, Accucore HILIC, Thermo (250 × 4.6 mm), 3–5 μm"
+HILIC,50 mm,4.6 mm,425 €,"HILIC, Kinetex HILIC, Phenomenex (50 × 4.6 mm), 3–5 μm"
+HILIC,100 mm,4.6 mm,600 €,"HILIC, Kinetex HILIC, Phenomenex (100 × 4.6 mm), 3–5 μm"
+HILIC,150 mm,4.6 mm,850 €,"HILIC, Kinetex HILIC, Phenomenex (150 × 4.6 mm), 3–5 μm"
+HILIC,250 mm,4.6 mm,1150 €,"HILIC, Kinetex HILIC, Phenomenex (250 × 4.6 mm), 3–5 μm"
+HILIC,50 mm,4.6 mm,375 €,"HILIC, Nucleodur HILIC, Macherey-Nagel (50 × 4.6 mm), 3–5 μm"
+HILIC,100 mm,4.6 mm,525 €,"HILIC, Nucleodur HILIC, Macherey-Nagel (100 × 4.6 mm), 3–5 μm"
+HILIC,150 mm,4.6 mm,750 €,"HILIC, Nucleodur HILIC, Macherey-Nagel (150 × 4.6 mm), 3–5 μm"
+HILIC,250 mm,4.6 mm,1050 €,"HILIC, Nucleodur HILIC, Macherey-Nagel (250 × 4.6 mm), 3–5 μm"
+Cation IEX,50 mm,4.6 mm,500 €,"Cation IEX, IonPac CS12, Thermo (50 × 4.6 mm), 3–5 μm"
+Cation IEX,100 mm,4.6 mm,750 €,"Cation IEX, IonPac CS12, Thermo (100 × 4.6 mm), 3–5 μm"
+Cation IEX,150 mm,4.6 mm,1000 €,"Cation IEX, IonPac CS12, Thermo (150 × 4.6 mm), 3–5 μm"
+Cation IEX,250 mm,4.6 mm,1400 €,"Cation IEX, IonPac CS12, Thermo (250 × 4.6 mm), 3–5 μm"
+Anion IEX,50 mm,4.6 mm,425 €,"Anion IEX, Protein-Pak Q, Waters (50 × 4.6 mm), 3–5 μm"
+Anion IEX,100 mm,4.6 mm,600 €,"Anion IEX, Protein-Pak Q, Waters (100 × 4.6 mm), 3–5 μm"
+Anion IEX,150 mm,4.6 mm,850 €,"Anion IEX, Protein-Pak Q, Waters (150 × 4.6 mm), 3–5 μm"
+Anion IEX,250 mm,4.6 mm,1150 €,"Anion IEX, Protein-Pak Q, Waters (250 × 4.6 mm), 3–5 μm"
+Cation IEX,50 mm,4.6 mm,425 €,"Cation IEX, Protein-Pak SP, Waters (50 × 4.6 mm), 3–5 μm"
+Cation IEX,100 mm,4.6 mm,600 €,"Cation IEX, Protein-Pak SP, Waters (100 × 4.6 mm), 3–5 μm"
+Cation IEX,150 mm,4.6 mm,850 €,"Cation IEX, Protein-Pak SP, Waters (150 × 4.6 mm), 3–5 μm"
+Cation IEX,250 mm,4.6 mm,1150 €,"Cation IEX, Protein-Pak SP, Waters (250 × 4.6 mm), 3–5 μm"
+Anion IEX,50 mm,4.6 mm,500 €,"Anion IEX, BioPro IEX Q, YMC (50 × 4.6 mm), 3–5 μm"
+Anion IEX,100 mm,4.6 mm,750 €,"Anion IEX, BioPro IEX Q, YMC (100 × 4.6 mm), 3–5 μm"
+Anion IEX,150 mm,4.6 mm,1000 €,"Anion IEX, BioPro IEX Q, YMC (150 × 4.6 mm), 3–5 μm"
+Anion IEX,250 mm,4.6 mm,1400 €,"Anion IEX, BioPro IEX Q, YMC (250 × 4.6 mm), 3–5 μm"
+Cation IEX,50 mm,4.6 mm,500 €,"Cation IEX, BioPro IEX S, YMC (50 × 4.6 mm), 3–5 μm"
+Cation IEX,100 mm,4.6 mm,750 €,"Cation IEX, BioPro IEX S, YMC (100 × 4.6 mm), 3–5 μm"
+Cation IEX,150 mm,4.6 mm,1000 €,"Cation IEX, BioPro IEX S, YMC (150 × 4.6 mm), 3–5 μm"
+Cation IEX,250 mm,4.6 mm,1400 €,"Cation IEX, BioPro IEX S, YMC (250 × 4.6 mm), 3–5 μm"
+SEC,50 mm,4.6 mm,750 €,"SEC, XBridge Protein SEC, Waters (50 × 4.6 mm), 3–5 μm"
+SEC,100 mm,4.6 mm,1000 €,"SEC, XBridge Protein SEC, Waters (100 × 4.6 mm), 3–5 μm"
+SEC,150 mm,4.6 mm,1250 €,"SEC, XBridge Protein SEC, Waters (150 × 4.6 mm), 3–5 μm"
+SEC,250 mm,4.6 mm,1750 €,"SEC, XBridge Protein SEC, Waters (250 × 4.6 mm), 3–5 μm"
+SEC,50 mm,4.6 mm,750 €,"SEC, Bio SEC-3, Agilent (50 × 4.6 mm), 3–5 μm"
+SEC,100 mm,4.6 mm,1000 €,"SEC, Bio SEC-3, Agilent (100 × 4.6 mm), 3–5 μm"
+SEC,150 mm,4.6 mm,1250 €,"SEC, Bio SEC-3, Agilent (150 × 4.6 mm), 3–5 μm"
+SEC,250 mm,4.6 mm,1750 €,"SEC, Bio SEC-3, Agilent (250 × 4.6 mm), 3–5 μm"
+SEC,50 mm,4.6 mm,500 €,"SEC, BioSep SEC-S2000, Phenomenex (50 × 4.6 mm), 3–5 μm"
+SEC,100 mm,4.6 mm,750 €,"SEC, BioSep SEC-S2000, Phenomenex (100 × 4.6 mm), 3–5 μm"
+SEC,150 mm,4.6 mm,1000 €,"SEC, BioSep SEC-S2000, Phenomenex (150 × 4.6 mm), 3–5 μm"
+SEC,250 mm,4.6 mm,1400 €,"SEC, BioSep SEC-S2000, Phenomenex (250 × 4.6 mm), 3–5 μm"
+SEC,50 mm,4.6 mm,750 €,"SEC, TSKgel G2000SW, Tosoh (50 × 4.6 mm), 3–5 μm"
+SEC,100 mm,4.6 mm,1000 €,"SEC, TSKgel G2000SW, Tosoh (100 × 4.6 mm), 3–5 μm"
+SEC,150 mm,4.6 mm,1250 €,"SEC, TSKgel G2000SW, Tosoh (150 × 4.6 mm), 3–5 μm"
+SEC,250 mm,4.6 mm,1750 €,"SEC, TSKgel G2000SW, Tosoh (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,4.6 mm,400 €,"C18, Zorbax Eclipse Plus, Agilent (50 × 4.6 mm), 3–5 μm"
+C18,100 mm,4.6 mm,525 €,"C18, Zorbax Eclipse Plus, Agilent (100 × 4.6 mm), 3–5 μm"
+C18,150 mm,4.6 mm,850 €,"C18, Zorbax Eclipse Plus, Agilent (150 × 4.6 mm), 3–5 μm"
+C18,250 mm,4.6 mm,1100 €,"C18, Zorbax Eclipse Plus, Agilent (250 × 4.6 mm), 3–5 μm"
+C8,50 mm,4.6 mm,350 €,"C8, Zorbax Eclipse Plus, Agilent (50 × 4.6 mm), 3–5 μm"
+C8,100 mm,4.6 mm,525 €,"C8, Zorbax Eclipse Plus, Agilent (100 × 4.6 mm), 3–5 μm"
+C8,150 mm,4.6 mm,750 €,"C8, Zorbax Eclipse Plus, Agilent (150 × 4.6 mm), 3–5 μm"
+C8,250 mm,4.6 mm,1050 €,"C8, Zorbax Eclipse Plus, Agilent (250 × 4.6 mm), 3–5 μm"
+CN,50 mm,4.6 mm,375 €,"CN, Ascentis, Supelco (50 × 4.6 mm), 3–5 μm"
+CN,100 mm,4.6 mm,525 €,"CN, Ascentis, Supelco (100 × 4.6 mm), 3–5 μm"
+CN,150 mm,4.6 mm,750 €,"CN, Ascentis, Supelco (150 × 4.6 mm), 3–5 μm"
+CN,250 mm,4.6 mm,1050 €,"CN, Ascentis, Supelco (250 × 4.6 mm), 3–5 μm"
+Anion IEX,50 mm,4.6 mm,500 €,"Anion IEX, IonPac AS11, Thermo (50 × 4.6 mm), 3–5 μm"
+Anion IEX,100 mm,4.6 mm,750 €,"Anion IEX, IonPac AS11, Thermo (100 × 4.6 mm), 3–5 μm"
+Anion IEX,150 mm,4.6 mm,1000 €,"Anion IEX, IonPac AS11, Thermo (150 × 4.6 mm), 3–5 μm"
+Anion IEX,250 mm,4.6 mm,1400 €,"Anion IEX, IonPac AS11, Thermo (250 × 4.6 mm), 3–5 μm"
+Polar-embedded,50 mm,4.6 mm,500 €,"Polar-embedded, Atlantis dC18, Waters (50 × 4.6 mm), 3–5 μm"
+Polar-embedded,100 mm,4.6 mm,750 €,"Polar-embedded, Atlantis dC18, Waters (100 × 4.6 mm), 3–5 μm"
+Polar-embedded,150 mm,4.6 mm,1000 €,"Polar-embedded, Atlantis dC18, Waters (150 × 4.6 mm), 3–5 μm"
+Polar-embedded,250 mm,4.6 mm,1400 €,"Polar-embedded, Atlantis dC18, Waters (250 × 4.6 mm), 3–5 μm"
+C18,50 mm,2.1 mm,750 €,"C18, Acquity UPLC BEH C18, Waters (50 × 2.1 mm), 1.7–2.6 μm"
+C18,100 mm,2.1 mm,1100 €,"C18, Acquity UPLC BEH C18, Waters (100 × 2.1 mm), 1.7–2.6 μm"
+C18,150 mm,2.1 mm,1450 €,"C18, Acquity UPLC BEH C18, Waters (150 × 2.1 mm), 1.7–2.6 μm"
+C18,50 mm,2.1 mm,750 €,"C18, Acquity UPLC HSS T3, Waters (50 × 2.1 mm), 1.8 μm"
+C18,100 mm,2.1 mm,1100 €,"C18, Acquity UPLC HSS T3, Waters (100 × 2.1 mm), 1.8 μm"
+C18,150 mm,2.1 mm,1450 €,"C18, Acquity UPLC HSS T3, Waters (150 × 2.1 mm), 1.8 μm"
+C18,50 mm,2.1 mm,450 €,"C18, Zorbax Eclipse Plus, Agilent (50 × 2.1 mm), 1.8–3 μm"
+C18,100 mm,2.1 mm,625 €,"C18, Zorbax Eclipse Plus, Agilent (100 × 2.1 mm), 1.8–3 μm"
+C18,150 mm,2.1 mm,850 €,"C18, Zorbax Eclipse Plus, Agilent (150 × 2.1 mm), 1.8–3 μm"
+C18,50 mm,2.1 mm,500 €,"C18, Poroshell 120 EC-C18, Agilent (50 × 2.1 mm), 2.7 μm"
+C18,100 mm,2.1 mm,725 €,"C18, Poroshell 120 EC-C18, Agilent (100 × 2.1 mm), 2.7 μm"
+C18,150 mm,2.1 mm,950 €,"C18, Poroshell 120 EC-C18, Agilent (150 × 2.1 mm), 2.7 μm"
+C18,50 mm,2.1 mm,450 €,"C18, Kinetex, Phenomenex (50 × 2.1 mm), 1.7–2.6 μm"
+C18,100 mm,2.1 mm,625 €,"C18, Kinetex, Phenomenex (100 × 2.1 mm), 1.7–2.6 μm"
+C18,150 mm,2.1 mm,850 €,"C18, Kinetex, Phenomenex (150 × 2.1 mm), 1.7–2.6 μm"
+C18,50 mm,2.1 mm,480 €,"C18, Kinetex EVO, Phenomenex (50 × 2.1 mm), 1.7–2.6 μm"
+C18,100 mm,2.1 mm,675 €,"C18, Kinetex EVO, Phenomenex (100 × 2.1 mm), 1.7–2.6 μm"
+C18,150 mm,2.1 mm,900 €,"C18, Kinetex EVO, Phenomenex (150 × 2.1 mm), 1.7–2.6 μm"
+C18,50 mm,2.1 mm,450 €,"C18, Hypersil GOLD, Thermo (50 × 2.1 mm), 1.9–3 μm"
+C18,100 mm,2.1 mm,625 €,"C18, Hypersil GOLD, Thermo (100 × 2.1 mm), 1.9–3 μm"
+C18,150 mm,2.1 mm,850 €,"C18, Hypersil GOLD, Thermo (150 × 2.1 mm), 1.9–3 μm"
+C18,50 mm,2.1 mm,450 €,"C18, Accucore, Thermo (50 × 2.1 mm), 2.6 μm"
+C18,100 mm,2.1 mm,625 €,"C18, Accucore, Thermo (100 × 2.1 mm), 2.6 μm"
+C18,150 mm,2.1 mm,850 €,"C18, Accucore, Thermo (150 × 2.1 mm), 2.6 μm"
+C18,50 mm,2.1 mm,550 €,"C18, YMC Triart , YMC (50 × 2.1 mm), 1.9–3 μm"
+C18,100 mm,2.1 mm,825 €,"C18, YMC Triart, YMC (100 × 2.1 mm), 1.9–3 μm"
+C18,150 mm,2.1 mm,1075 €,"C18, YMC Triart, YMC (150 × 2.1 mm), 1.9–3 μm"
+C18,50 mm,2.1 mm,375 €,"C18, Nucleodur Gravity, Macherey-Nagel (50 × 2.1 mm), 3 μm"
+C18,100 mm,2.1 mm,550 €,"C18, Nucleodur Gravity, Macherey-Nagel (100 × 2.1 mm), 3 μm"
+C18,150 mm,2.1 mm,750 €,"C18, Nucleodur Gravity, Macherey-Nagel (150 × 2.1 mm), 3 μm"
+C18,50 mm,2.1 mm,450 €,"C18, Ascentis Express, Supelco (50 × 2.1 mm), 2.7 μm"
+C18,100 mm,2.1 mm,625 €,"C18, Ascentis Express, Supelco (100 × 2.1 mm), 2.7 μm"
+C18,150 mm,2.1 mm,850 €,"C18, Ascentis Express, Supelco (150 × 2.1 mm), 2.7 μm"
+Phenyl-Hexyl,50 mm,2.1 mm,450 €,"Phenyl-Hexyl, Kinetex, Phenomenex (50 × 2.1 mm), 1.7–2.6 μm"
+Phenyl-Hexyl,100 mm,2.1 mm,625 €,"Phenyl-Hexyl, Kinetex, Phenomenex (100 × 2.1 mm), 1.7–2.6 μm"
+Phenyl-Hexyl,150 mm,2.1 mm,850 €,"Phenyl-Hexyl, Kinetex, Phenomenex (150 × 2.1 mm), 1.7–2.6 μm"
+HILIC,50 mm,2.1 mm,750 €,"HILIC, BEH Amide, Waters (50 × 2.1 mm), 1.7–2.6 μm"
+HILIC,100 mm,2.1 mm,1100 €,"HILIC, BEH Amide, Waters (100 × 2.1 mm), 1.7–2.6 μm"
+HILIC,150 mm,2.1 mm,1450 €,"HILIC, BEH Amide, Waters (150 × 2.1 mm), 1.7–2.6 μm"
+HILIC,50 mm,2.1 mm,750 €,"HILIC, BEH, Waters (50 × 2.1 mm), 1.7–2.6 μm"
+HILIC,100 mm,2.1 mm,1100 €,"HILIC, BEH, Waters (100 × 2.1 mm), 1.7–2.6 μm"
+HILIC,150 mm,2.1 mm,1450 €,"HILIC, BEH, Waters (150 × 2.1 mm), 1.7–2.6 μm"
+HILIC,50 mm,2.1 mm,450 €,"HILIC, Accucore, Thermo (50 × 2.1 mm), 2.6 μm"
+HILIC,100 mm,2.1 mm,625 €,"HILIC, Accucore, Thermo (100 × 2.1 mm), 2.6 μm"
+HILIC,150 mm,2.1 mm,850 €,"HILIC, Accucore, Thermo (150 × 2.1 mm), 2.6 μm"
+HILIC,50 mm,2.1 mm,450 €,"HILIC, Kinetex, Phenomenex (50 × 2.1 mm), 2.6 μm"
+HILIC,100 mm,2.1 mm,625 €,"HILIC, Kinetex, Phenomenex (100 × 2.1 mm), 2.6 μm"
+HILIC,150 mm,2.1 mm,850 €,"HILIC, Kinetex, Phenomenex (150 × 2.1 mm), 2.6 μm"
+Polar-embedded C18,50 mm,2.1 mm,500 €,"Polar-embedded C18, Atlantis dC18, Waters (50 × 2.1 mm), 3 μm"
+Polar-embedded C18,100 mm,2.1 mm,750 €,"Polar-embedded C18, Atlantis dC18, Waters (100 × 2.1 mm), 3 μm"
+Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Waters (150 × 2.1 mm), 3 μm"`;
 	const SECTION_GUIDANCE = {
 		'Analytical Performance': {
 			summary: 'Enter your method performance values exactly as measured in your lab records.',
@@ -241,12 +421,15 @@
 				return;
 			}
 			if (q.type === 'recurring_cost_calculator') {
-				const columnEl = document.getElementById(q.id + '_column');
+				const ids = getRecurringCostIds(q.id);
+				const columnTypeEl = document.getElementById(ids.columnTypeId);
+				const columnNameEl = document.getElementById(ids.columnNameId);
 				const runEl = document.getElementById(q.id + '_run');
 				const flowEl = document.getElementById(q.id + '_flow');
 				const totalEl = document.getElementById(q.id + '_total');
 				const mix = getRecurringMix(q.id);
-				if (columnEl) ANSWERS[q.id + '_column'] = columnEl.value;
+				if (columnTypeEl) ANSWERS[ids.columnTypeId] = columnTypeEl.value;
+				if (columnNameEl) ANSWERS[ids.columnNameId] = columnNameEl.value;
 				if (runEl) ANSWERS[q.id + '_run'] = runEl.value;
 				if (flowEl) ANSWERS[q.id + '_flow'] = flowEl.value;
 				ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(mix.solvents || []);
@@ -301,14 +484,22 @@
 				return;
 			}
 			if (q.type === 'recurring_cost_calculator') {
-				const columnEl = document.getElementById(q.id + '_column');
+				const ids = getRecurringCostIds(q.id);
+				const columnTypeEl = document.getElementById(ids.columnTypeId);
+				const columnNameEl = document.getElementById(ids.columnNameId);
 				const runEl = document.getElementById(q.id + '_run');
 				const flowEl = document.getElementById(q.id + '_flow');
 				const totalEl = document.getElementById(q.id + '_total');
 				const mix = getRecurringMix(q.id);
 				mix.solvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
 				mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
-				if (columnEl && ANSWERS[q.id + '_column'] !== undefined) columnEl.value = ANSWERS[q.id + '_column'];
+				if (columnTypeEl && ANSWERS[ids.columnTypeId] !== undefined) {
+					columnTypeEl.value = ANSWERS[ids.columnTypeId];
+					populateColumnNames(q.id, ANSWERS[ids.columnTypeId]);
+				}
+				if (columnNameEl && ANSWERS[ids.columnNameId] !== undefined) {
+					columnNameEl.value = ANSWERS[ids.columnNameId];
+				}
 				if (runEl && ANSWERS[q.id + '_run'] !== undefined) runEl.value = ANSWERS[q.id + '_run'];
 				if (flowEl && ANSWERS[q.id + '_flow'] !== undefined) flowEl.value = ANSWERS[q.id + '_flow'];
 				renderRecurringList(q.id, 'solvent');
@@ -384,7 +575,8 @@
 
 	function getRecurringCostIds(questionId) {
 		return {
-			columnId: questionId + '_column',
+			columnTypeId: questionId + '_column_type',
+			columnNameId: questionId + '_column_name',
 			runId: questionId + '_run',
 			flowId: questionId + '_flow',
 			solventSelectId: questionId + '_solvent_select',
@@ -475,6 +667,20 @@
 		`;
 	}
 
+	function renderSimpleSelect(selectId, options, placeholder, valueField = 'value', labelField = 'label') {
+		const optionElements = options.map(opt => {
+			const val = opt[valueField] !== undefined ? opt[valueField] : opt;
+			const label = opt[labelField] !== undefined ? opt[labelField] : opt;
+			return `<option value="${String(val)}">${String(label)}</option>`;
+		}).join('');
+		return `
+			<select id="${selectId}" name="${selectId}" class="form-input" required>
+				<option value="">${placeholder}</option>
+				${optionElements}
+			</select>
+		`;
+	}
+
 	function parseNamedCsvRows(csvText) {
 		const rows = parseCSV(csvText);
 		return rows.map(row => ({
@@ -482,6 +688,70 @@
 			price: row.price !== undefined && row.price !== '' ? Number(row.price) : NaN,
 			type: row.type || row.group || 'Other'
 		})).filter(row => row.name && !isNaN(row.price));
+	}
+
+	function parseColumnsCsv(csvText) {
+		const rows = parseCSV(csvText);
+		return rows.map(row => {
+			const priceSource = row['Price (avg)'] || row.price || row.Price || '';
+			const priceStr = String(priceSource).trim();
+			const priceMatch = priceStr.match(/([\d.]+)\s*€/i) || priceStr.match(/([\d.]+)/);
+			const price = priceMatch ? parseFloat(priceMatch[1]) : NaN;
+			const type = (row.Type || row.type || row['Column Type'] || '').trim();
+			const length = (row.Length || row.length || row['Column length'] || '').trim();
+			const diameter = (row.Diameter || row.diameter || row['Column diameter'] || '').trim();
+			const fullName = (row['Full name and characteristics'] || row.fullName || row.name || row['Full Name'] || '').trim();
+			return {
+				type,
+				length,
+				diameter,
+				price,
+				fullName
+			};
+		}).filter(row => row.type && row.fullName && !isNaN(row.price));
+	}
+
+	function getColumnTypes(columns) {
+		const types = [...new Set(columns.map(c => c.type).filter(Boolean))];
+		return types.sort((a, b) => a.localeCompare(b));
+	}
+
+	function getColumnsByType(columns, type) {
+		return columns.filter(c => String(c.type) === String(type));
+	}
+
+	function getSelectedColumnCost(selectEl) {
+		if (!selectEl) return NaN;
+		const selectedOption = selectEl.selectedOptions && selectEl.selectedOptions[0];
+		const priceFromData = selectedOption ? selectedOption.getAttribute('data-price') : null;
+		if (priceFromData !== null && priceFromData !== '') {
+			const parsed = parseFloat(priceFromData);
+			if (!isNaN(parsed)) return parsed;
+		}
+		const parsedValue = parseFloat(selectEl.value);
+		return isNaN(parsedValue) ? NaN : parsedValue;
+	}
+
+	function populateColumnNames(questionId, selectedType) {
+		const ids = getRecurringCostIds(questionId);
+		const nameSelectEl = document.getElementById(ids.columnNameId);
+		if (!nameSelectEl) return;
+
+		const filteredColumns = selectedType ? getColumnsByType(COLUMN_OPTIONS, selectedType) : [];
+		const currentValue = nameSelectEl.value;
+
+		nameSelectEl.innerHTML = '<option value="">Select column name...</option>' +
+			filteredColumns.map(col => {
+				const priceStr = col.price.toFixed(2);
+				const safelyEscapedName = String(col.fullName).replace(/"/g, '&quot;');
+				return `<option value="${safelyEscapedName}" data-price="${col.price}" data-fullname="${safelyEscapedName}">${safelyEscapedName} (${priceStr} €)</option>`;
+			}).join('');
+
+		if (currentValue && filteredColumns.some(c => c.fullName === currentValue || c.price.toFixed(2) === currentValue)) {
+			nameSelectEl.value = currentValue;
+		} else {
+			nameSelectEl.value = '';
+		}
 	}
 
 	function groupRowsByType(rows) {
@@ -534,12 +804,12 @@
 	}
 
 	function updateRecurringCostTotal(questionId) {
-		const { columnId, runId, flowId, totalId } = getRecurringCostIds(questionId);
-		const columnEl = document.getElementById(columnId);
+		const { columnNameId, runId, flowId, totalId } = getRecurringCostIds(questionId);
+		const columnNameEl = document.getElementById(columnNameId);
 		const runEl = document.getElementById(runId);
 		const flowEl = document.getElementById(flowId);
 		const totalEl = document.getElementById(totalId);
-		const columnCost = parseFloat(columnEl ? columnEl.value : '');
+		const columnCost = getSelectedColumnCost(columnNameEl);
 		const runMinutes = parseFloat(runEl ? runEl.value : '');
 		const flowRate = parseFloat(flowEl ? flowEl.value : '');
 		const mix = getRecurringMix(questionId);
@@ -570,8 +840,10 @@
 			console.groupEnd && console.groupEnd();
 		}
 		if (totalEl) totalEl.value = total;
-		if (!isNaN(columnCost)) ANSWERS[questionId + '_column'] = String(columnCost);
-		else delete ANSWERS[questionId + '_column'];
+		const ids = getRecurringCostIds(questionId);
+		const selectedColumnName = columnNameEl && columnNameEl.selectedOptions && columnNameEl.selectedOptions[0] ? columnNameEl.selectedOptions[0].value : (columnNameEl ? columnNameEl.value : '');
+		if (selectedColumnName !== '') ANSWERS[ids.columnNameId] = selectedColumnName;
+		else delete ANSWERS[ids.columnNameId];
 		if (!isNaN(runMinutes)) ANSWERS[questionId + '_run'] = String(runMinutes);
 		else delete ANSWERS[questionId + '_run'];
 		if (!isNaN(flowRate)) ANSWERS[questionId + '_flow'] = String(flowRate);
@@ -810,7 +1082,9 @@
 		}
 		delete ANSWERS[q.id];
 		if (q.type === 'recurring_cost_calculator') {
-			delete ANSWERS[q.id + '_column'];
+			const ids = getRecurringCostIds(q.id);
+			delete ANSWERS[ids.columnTypeId];
+			delete ANSWERS[ids.columnNameId];
 			delete ANSWERS[q.id + '_run'];
 			delete ANSWERS[q.id + '_flow'];
 			delete ANSWERS[q.id + '_solvent_entries'];
@@ -876,15 +1150,22 @@
 			   } else if (q.type === 'text') {
 				   input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
 			} else if (q.type === 'recurring_cost_calculator') {
-				const columnGroups = groupColumnsByLength(COLUMN_OPTIONS);
+				const columnTypes = getColumnTypes(COLUMN_OPTIONS);
 				const solventGroups = groupRowsByType(SOLVENT_OPTIONS);
 				const bufferGroups = groupRowsByType(BUFFER_OPTIONS);
+				const ids = getRecurringCostIds(q.id);
 				input = `
-					<div class="recurring-cost-calc" id="${q.id}_recurring_cost_calc">
+					<div class="recurring-cost-calc" id="${q.id}_recurring_cost_calc" data-question-id="${q.id}">
 						<div class="recurring-cost-grid">
 							<div class="recurring-cost-field">
-								<label id="${q.id}_column_label" for="${q.id}_column" class="input-label-small">Column</label>
-								${renderMappedSelect(q.id + '_column', columnGroups, 'Select column')}
+								<label id="${q.id}_column_type_label" for="${ids.columnTypeId}" class="input-label-small">Column Type</label>
+								${renderSimpleSelect(ids.columnTypeId, columnTypes, 'Select type')}
+							</div>
+							<div class="recurring-cost-field">
+								<label id="${q.id}_column_label" for="${ids.columnNameId}" class="input-label-small">Full column name</label>
+								<select id="${ids.columnNameId}" name="${ids.columnNameId}" class="form-input" required>
+									<option value="">Select column name...</option>
+								</select>
 							</div>
 							<div class="recurring-cost-field">
 								<label id="${q.id}_run_label" for="${q.id}_run" class="input-label-small">Total run (mins)</label>
@@ -1173,9 +1454,26 @@
 	   document.addEventListener('change', function(e) {
 		   const el = e.target;
 		   if (!el || !el.id) return;
-		   if (el.id.endsWith('_column') || el.id.endsWith('_solvent') || el.id.endsWith('_buffer')) {
+		   if (el.id.endsWith('_column_type')) {
+			   const qid = el.id.replace(/_column_type$/, '');
 			   ANSWERS[el.id] = el.value;
-			   const qid = el.id.replace(/_(column|solvent|buffer)$/, '');
+			   populateColumnNames(qid, el.value);
+			   updateRecurringCostTotal(qid);
+			   checkFormValidity();
+			   return;
+		   }
+		   if (el.id.endsWith('_column_name')) {
+			   ANSWERS[el.id] = el.value;
+			   const qid = el.id.replace(/_column_name$/, '');
+			   if (document.getElementById(qid + '_recurring_cost_calc')) {
+				   updateRecurringCostTotal(qid);
+				   checkFormValidity();
+			   }
+			   return;
+		   }
+		   if (el.id.endsWith('_solvent') || el.id.endsWith('_buffer')) {
+			   ANSWERS[el.id] = el.value;
+			   const qid = el.id.replace(/_(solvent|buffer)$/, '');
 			   if (document.getElementById(qid + '_recurring_cost_calc')) {
 				   updateRecurringCostTotal(qid);
 				   checkFormValidity();
@@ -1307,35 +1605,50 @@
 	}
 
 
-	// Native CSV parser: handles quoted fields, commas, Windows line endings
+	// Robust CSV parser: handles quoted fields, embedded commas, and Windows line endings.
 	function parseCSV(csv) {
 		const rows = [];
-		let cur = '', inQuotes = false, row = [], i = 0;
-		// Normalize line endings
-		csv = csv.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-		while (i < csv.length) {
-			const c = csv[i];
+		let row = [];
+		let field = '';
+		let inQuotes = false;
+		const normalized = String(csv || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+		for (let i = 0; i < normalized.length; i++) {
+			const char = normalized[i];
 			if (inQuotes) {
-				if (c === '"') {
-					if (csv[i+1] === '"') { cur += '"'; i++; } // Escaped quote
-					else inQuotes = false;
+				if (char === '"') {
+					if (normalized[i + 1] === '"') {
+						field += '"';
+						i++;
+					} else {
+						inQuotes = false;
+					}
 				} else {
-					cur += c;
+					field += char;
 				}
+			} else if (char === '"') {
+				inQuotes = true;
+			} else if (char === ',') {
+				row.push(field);
+				field = '';
+			} else if (char === '\n') {
+				row.push(field);
+				rows.push(row);
+				row = [];
+				field = '';
 			} else {
-				if (c === '"') inQuotes = true;
-				else if (c === ',') { row.push(cur); cur = ''; }
-				else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
-				else cur += c;
+				field += char;
 			}
-			i++;
 		}
-		if (cur.length > 0 || row.length > 0) { row.push(cur); rows.push(row); }
-		// Convert to array of objects
-		const headers = rows[0];
-		return rows.slice(1).filter(r => r.length > 1 && r.some(cell => cell.trim() !== '')).map(r => {
+		if (field.length > 0 || row.length > 0) {
+			row.push(field);
+			rows.push(row);
+		}
+		const headers = (rows[0] || []).map(h => String(h || '').trim());
+		return rows.slice(1).filter(r => Array.isArray(r) && r.some(cell => String(cell || '').trim() !== '')).map(r => {
 			const obj = {};
-			headers.forEach((h, idx) => { obj[h.trim()] = (r[idx] || '').trim(); });
+			headers.forEach((h, idx) => {
+				obj[h] = String(r[idx] || '').trim();
+			});
 			return obj;
 		});
 	}
@@ -1344,25 +1657,33 @@
 		const loadingMsg = document.getElementById('loading-message');
 		const errorMsg = document.getElementById('error-message');
 		try {
-			const [questionsRes, solventsRes, columnsRes, buffersRes] = await Promise.all([
-				fetch('config/questions.csv'),
-				fetch('config/solvents.csv'),
-				fetch('config/columns.csv'),
-				fetch('config/buffers.csv')
+			const cacheBuster = `t=${Date.now()}`;
+			const [questionsResult, solventsResult, columnsResult, buffersResult] = await Promise.allSettled([
+				fetch(`config/questions.csv?${cacheBuster}`, { cache: 'no-store' }),
+				fetch(`config/solvents.csv?${cacheBuster}`, { cache: 'no-store' }),
+				fetch(`config/columns.csv?${cacheBuster}`, { cache: 'no-store' }),
+				fetch(`config/buffers.csv?${cacheBuster}`, { cache: 'no-store' })
 			]);
-			if (!questionsRes.ok) throw new Error('Question file not found');
-			if (!solventsRes.ok) throw new Error('Solvent file not found');
-			if (!columnsRes.ok) throw new Error('Column file not found');
-			if (!buffersRes.ok) throw new Error('Buffer file not found');
+			const questionsRes = questionsResult.status === 'fulfilled' ? questionsResult.value : null;
+			const solventsRes = solventsResult.status === 'fulfilled' ? solventsResult.value : null;
+			const columnsRes = columnsResult.status === 'fulfilled' ? columnsResult.value : null;
+			const buffersRes = buffersResult.status === 'fulfilled' ? buffersResult.value : null;
+			if (!questionsRes || !questionsRes.ok) throw new Error('Question file not found');
+			if (!solventsRes || !solventsRes.ok) throw new Error('Solvent file not found');
+			if (!buffersRes || !buffersRes.ok) throw new Error('Buffer file not found');
 			const [csvText, solventsText, columnsText, buffersText] = await Promise.all([
 				questionsRes.text(),
 				solventsRes.text(),
-				columnsRes.text(),
+				columnsRes && columnsRes.ok ? columnsRes.text() : FALLBACK_COLUMNS_CSV,
 				buffersRes.text()
 			]);
 			SOLVENT_OPTIONS = parseNamedCsvRows(solventsText);
-			COLUMN_OPTIONS = parseNamedCsvRows(columnsText);
+			COLUMN_OPTIONS = parseColumnsCsv(columnsText);
+			if (!COLUMN_OPTIONS.length) COLUMN_OPTIONS = parseColumnsCsv(FALLBACK_COLUMNS_CSV);
 			BUFFER_OPTIONS = parseNamedCsvRows(buffersText);
+			if (COLUMN_OPTIONS.length) {
+				console.log('Distinct column types:', getColumnTypes(COLUMN_OPTIONS));
+			}
 			console.groupCollapsed && console.groupCollapsed('Loaded recurring cost sources');
 			console.log('Solvents:', SOLVENT_OPTIONS);
 			console.log('Columns:', COLUMN_OPTIONS);
@@ -1549,10 +1870,14 @@
 				   } else if (q.type === 'text') {
 					   val = 'debug';
 					   } else if (q.type === 'recurring_cost_calculator') {
-						   const columnValues = COLUMN_OPTIONS.length ? COLUMN_OPTIONS.map(it => it.price) : [100, 250, 500];
+						   const ids = getRecurringCostIds(q.id);
 						   const solventRows = SOLVENT_OPTIONS.length ? SOLVENT_OPTIONS : [{ name: 'Water', price: 0.01 }, { name: 'Methanol', price: 0.08 }];
 						   const bufferRows = BUFFER_OPTIONS.length ? BUFFER_OPTIONS : [{ name: 'Formic acid', price: 0.02 }];
-						   const column = columnValues[Math.floor(Math.random() * columnValues.length)];
+						   const columnTypes = getColumnTypes(COLUMN_OPTIONS);
+						   const selectedType = columnTypes.length > 0 ? columnTypes[Math.floor(Math.random() * columnTypes.length)] : 'C18';
+						   const columnsOfType = getColumnsByType(COLUMN_OPTIONS, selectedType);
+						   const selectedColumn = columnsOfType.length > 0 ? columnsOfType[Math.floor(Math.random() * columnsOfType.length)] : { price: 400 };
+						   const columnPrice = selectedColumn.price;
 						   const run = (Math.random() * 30 + 5).toFixed(1);
 						   const flow = (Math.random() * 3 + 0.5).toFixed(2);
 						   const water = solventRows.find(s => s.name && s.name.toLowerCase().includes('water')) || solventRows[0];
@@ -1565,7 +1890,8 @@
 						   const bufferEntries = [
 							   { name: buffer.name, price: Number(buffer.price), pct: 10 }
 						   ];
-						   ANSWERS[q.id + '_column'] = String(column);
+						   ANSWERS[ids.columnTypeId] = selectedType;
+						   ANSWERS[ids.columnNameId] = selectedColumn.fullName || selectedColumn.name || String(columnPrice);
 						   ANSWERS[q.id + '_run'] = run;
 						   ANSWERS[q.id + '_flow'] = flow;
 						   ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(solventEntries);
@@ -1574,7 +1900,7 @@
 						   const solventSubtotal = solventEntries.reduce((sum, item) => sum + (totalVolume * (item.pct / 100) * item.price), 0);
 						   const waterVolume = totalVolume * 0.6;
 						   const bufferSubtotal = bufferEntries.reduce((sum, item) => sum + (waterVolume * (item.pct / 100) * item.price), 0);
-						   val = (Number(column) + solventSubtotal + bufferSubtotal).toFixed(2);
+						   val = (Number(columnPrice) + solventSubtotal + bufferSubtotal).toFixed(2);
 				   } else if (q.type === 'boolean') {
 					   if (q.method === 'lookup' && params && typeof params === 'object') {
 						   const keys = Object.keys(params).filter(k => k === 'true' || k === 'false');
@@ -1592,17 +1918,23 @@
 					   if (trueEl) trueEl.checked = val === 'true';
 					   if (falseEl) falseEl.checked = val === 'false';
 					   } else if (q.type === 'recurring_cost_calculator') {
-						   const columnEl = document.getElementById(q.id + '_column');
+						   const ids = getRecurringCostIds(q.id);
+						   const columnTypeEl = document.getElementById(ids.columnTypeId);
+						   const columnNameEl = document.getElementById(ids.columnNameId);
 						   const runEl = document.getElementById(q.id + '_run');
 						   const flowEl = document.getElementById(q.id + '_flow');
 						   const totalEl = document.getElementById(q.id + '_total');
-						   if (columnEl) columnEl.value = ANSWERS[q.id + '_column'];
+						   if (columnTypeEl) columnTypeEl.value = ANSWERS[ids.columnTypeId];
+						   if (columnNameEl) columnNameEl.value = ANSWERS[ids.columnNameId];
 						   if (runEl) runEl.value = ANSWERS[q.id + '_run'];
 						   if (flowEl) flowEl.value = ANSWERS[q.id + '_flow'];
 						   if (totalEl) totalEl.value = ANSWERS[q.id];
 						   const mix = getRecurringMix(q.id);
 						   mix.solvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
 						   mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
+						   if (columnTypeEl && ANSWERS[ids.columnTypeId]) {
+							   populateColumnNames(q.id, ANSWERS[ids.columnTypeId]);
+						   }
 						   renderRecurringList(q.id, 'solvent');
 						   renderRecurringList(q.id, 'buffer');
 						   updateRecurringCostTotal(q.id);
