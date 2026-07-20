@@ -1,7 +1,17 @@
-type,name,price
-Aqueous,Water,0.01
-Aqueous,Buffer mix,0.03
-Organic,Methanol,0.08
-Organic,Acetonitrile,0.12
-Halogenated,Dichloromethane,0.15
-Halogenated,Chloroform,0.18
+phase,type,name,price
+Normal,Alkanes,n-Heptane (HPLC grade),54.0
+Normal,Alkanes,n-Heptane (LC/MS grade),95.0
+Normal,Alkanes,Hexane (HPLC grade),55.0
+Normal,Alkanes,Hexane (LC/MS grade),100.0
+Normal,Alcohol,Isopropanol (IPA) (HPLC grade),16.0
+Normal,Alcohol,Isopropanol (IPA) (LC/MS grade),60.0
+Normal,Ester,Ethyl Acetate (HPLC grade),27.0
+Normal,Ester,Ethyl Acetate (LC/MS grade),55.0
+Normal,Halogenated,Dichloromethane (DCM) (HPLC grade),45.0
+Normal,Halogenated,Dichloromethane (DCM) (LC/MS grade),95.0
+Reverse,Organic,Acetonitrile (HPLC grade),59.0
+Reverse,Organic,Acetonitrile (LC/MS grade),120.0
+Reverse,Organic,Methanol (HPLC grade),22.0
+Reverse,Organic,Methanol (LC/MS grade),150.0
+Reverse,Aqueous,Water (Ultrapure) (HPLC grade),26.0
+Reverse,Aqueous,Water (Ultrapure) (LC/MS grade),200.0

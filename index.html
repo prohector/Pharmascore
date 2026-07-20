@@ -58,7 +58,8 @@
 
 	<!-- Main Form Section -->
 	<main>
-		<aside id="section-guidance" class="section-guidance" aria-live="polite">
+		<button id="section-guidance-toggle" class="section-guidance-toggle" type="button" aria-expanded="false" aria-controls="section-guidance">Help</button>
+		<aside id="section-guidance" class="section-guidance hidden" aria-live="polite">
 			<h3 id="guidance-title">How To Complete This Section</h3>
 			<p id="guidance-summary">Follow the prompts and enter values carefully.</p>
 			<ul id="guidance-steps"></ul>
@@ -292,19 +293,19 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				'Keep values consistent with your actual workflow.'
 			]
 		},
-		'Fixed costs': {
+		'Equipment Fixed Costs': {
 			summary: 'This section captures one-time or infrastructure-related economic choices.',
 			steps: [
 				'Select the detector type that best matches your method setup.',
 				'If multiple detectors are used, choose the main one used for routine analysis.',
-				'Then continue to recurring costs for per-run calculations.'
+				'Then continue to analytical consumables for per-run calculations.'
 			]
 		},
-		Recurring: {
-			summary: 'Build the mobile phase composition and per-run recurring cost step by step.',
+		'Analytical Consumables': {
+			summary: 'Build the mobile phase composition and per-run analytical consumables step by step.',
 			steps: [
 				'Add each solvent with its percentage and click Add.',
-				'Add each buffer with % w/mL relative to the water volume.',
+				'Add modifiers and buffers with the requested concentration.',
 				'Review the lists and remove entries if needed before submitting.'
 			]
 		},
@@ -317,6 +318,16 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			]
 		}
 	};
+
+	function toggleSectionGuidance(forceOpen) {
+		const toggle = document.getElementById('section-guidance-toggle');
+		const guidance = document.getElementById('section-guidance');
+		if (!toggle || !guidance) return;
+		const shouldOpen = forceOpen !== undefined ? forceOpen : guidance.classList.contains('hidden');
+		guidance.classList.toggle('hidden', !shouldOpen);
+		toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+		toggle.textContent = shouldOpen ? 'Close help' : 'Help';
+	}
 
 	function updateSectionGuidance() {
 		const area = QUESTION_AREAS[currentTab];
@@ -346,6 +357,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		document.getElementById('analysis-gate').classList.add('hidden');
 		document.getElementById('loading-message').classList.add('hidden');
 		document.querySelector('main').classList.remove('hidden');
+		if (document.getElementById('section-guidance')) {
+			toggleSectionGuidance(false);
+		}
 	}
 
 	function chooseAnalysisMode(mode) {
@@ -432,7 +446,13 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				if (columnNameEl) ANSWERS[ids.columnNameId] = columnNameEl.value;
 				if (runEl) ANSWERS[q.id + '_run'] = runEl.value;
 				if (flowEl) ANSWERS[q.id + '_flow'] = flowEl.value;
-				ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(mix.solvents || []);
+				const normalPhaseSolvents = mix.normalPhaseSolvents || [];
+				const reversePhaseSolvents = mix.reversePhaseSolvents || [];
+				const combinedSolvents = [...normalPhaseSolvents, ...reversePhaseSolvents];
+				mix.solvents = combinedSolvents;
+				ANSWERS[q.id + '_normal_phase_solvent_entries'] = JSON.stringify(normalPhaseSolvents);
+				ANSWERS[q.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reversePhaseSolvents);
+				ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(combinedSolvents);
 				ANSWERS[q.id + '_buffer_entries'] = JSON.stringify(mix.buffers || []);
 				if (totalEl) ANSWERS[q.id] = totalEl.value;
 				if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
@@ -491,8 +511,13 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				const flowEl = document.getElementById(q.id + '_flow');
 				const totalEl = document.getElementById(q.id + '_total');
 				const mix = getRecurringMix(q.id);
-				mix.solvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
+				const savedNormal = parseRecurringEntries(ANSWERS[q.id + '_normal_phase_solvent_entries']);
+				const savedReverse = parseRecurringEntries(ANSWERS[q.id + '_reverse_phase_solvent_entries']);
+				const legacySolvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
+				mix.normalPhaseSolvents = savedNormal.length ? savedNormal : (legacySolvents.length ? legacySolvents : []);
+				mix.reversePhaseSolvents = savedReverse.length ? savedReverse : [];
 				mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
+				mix.solvents = [...mix.normalPhaseSolvents, ...mix.reversePhaseSolvents];
 				if (columnTypeEl && ANSWERS[ids.columnTypeId] !== undefined) {
 					columnTypeEl.value = ANSWERS[ids.columnTypeId];
 					populateColumnNames(q.id, ANSWERS[ids.columnTypeId]);
@@ -502,7 +527,8 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				}
 				if (runEl && ANSWERS[q.id + '_run'] !== undefined) runEl.value = ANSWERS[q.id + '_run'];
 				if (flowEl && ANSWERS[q.id + '_flow'] !== undefined) flowEl.value = ANSWERS[q.id + '_flow'];
-				renderRecurringList(q.id, 'solvent');
+				renderRecurringList(q.id, 'normal_phase_solvent');
+				renderRecurringList(q.id, 'reverse_phase_solvent');
 				renderRecurringList(q.id, 'buffer');
 				if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
 				updateRecurringCostTotal(q.id);
@@ -579,11 +605,21 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			columnNameId: questionId + '_column_name',
 			runId: questionId + '_run',
 			flowId: questionId + '_flow',
-			solventSelectId: questionId + '_solvent_select',
-			solventPctId: questionId + '_solvent_pct',
-			solventAddBtnId: questionId + '_add_solvent',
-			solventListId: questionId + '_solvent_list',
-			solventEmptyId: questionId + '_solvent_empty',
+			normalPhaseSelectId: questionId + '_normal_phase_solvent_select',
+			normalPhasePctId: questionId + '_normal_phase_solvent_pct',
+			normalPhaseAddBtnId: questionId + '_add_normal_phase_solvent',
+			normalPhaseListId: questionId + '_normal_phase_solvent_list',
+			normalPhaseEmptyId: questionId + '_normal_phase_solvent_empty',
+			reversePhaseSelectId: questionId + '_reverse_phase_solvent_select',
+			reversePhasePctId: questionId + '_reverse_phase_solvent_pct',
+			reversePhaseAddBtnId: questionId + '_add_reverse_phase_solvent',
+			reversePhaseListId: questionId + '_reverse_phase_solvent_list',
+			reversePhaseEmptyId: questionId + '_reverse_phase_solvent_empty',
+			modifierSelectId: questionId + '_modifier_select',
+			modifierPctId: questionId + '_modifier_pct',
+			modifierAddBtnId: questionId + '_add_modifier',
+			modifierListId: questionId + '_modifier_list',
+			modifierEmptyId: questionId + '_modifier_empty',
 			bufferSelectId: questionId + '_buffer_select',
 			bufferPctId: questionId + '_buffer_pct',
 			bufferAddBtnId: questionId + '_add_buffer',
@@ -596,7 +632,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 
 	function getRecurringMix(questionId) {
 		if (!RECURRING_MIXES[questionId]) {
-			RECURRING_MIXES[questionId] = { solvents: [], buffers: [] };
+			RECURRING_MIXES[questionId] = { solvents: [], normalPhaseSolvents: [], reversePhaseSolvents: [], modifiers: [], buffers: [] };
 		}
 		return RECURRING_MIXES[questionId];
 	}
@@ -619,9 +655,26 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	function renderRecurringList(questionId, kind) {
 		const ids = getRecurringCostIds(questionId);
 		const mix = getRecurringMix(questionId);
-		const list = kind === 'buffer' ? mix.buffers : mix.solvents;
-		const listEl = document.getElementById(kind === 'buffer' ? ids.bufferListId : ids.solventListId);
-		const emptyEl = document.getElementById(kind === 'buffer' ? ids.bufferEmptyId : ids.solventEmptyId);
+		let list = [];
+		let listEl = null;
+		let emptyEl = null;
+		if (kind === 'buffer') {
+			list = mix.buffers || [];
+			listEl = document.getElementById(ids.bufferListId);
+			emptyEl = document.getElementById(ids.bufferEmptyId);
+		} else if (kind === 'modifier') {
+			list = mix.modifiers || [];
+			listEl = document.getElementById(ids.modifierListId);
+			emptyEl = document.getElementById(ids.modifierEmptyId);
+		} else if (kind === 'reverse_phase_solvent') {
+			list = mix.reversePhaseSolvents || [];
+			listEl = document.getElementById(ids.reversePhaseListId);
+			emptyEl = document.getElementById(ids.reversePhaseEmptyId);
+		} else {
+			list = mix.normalPhaseSolvents || [];
+			listEl = document.getElementById(ids.normalPhaseListId);
+			emptyEl = document.getElementById(ids.normalPhaseEmptyId);
+		}
 		if (listEl) {
 			listEl.innerHTML = list.map((entry, idx) => `
 				<tr class="solvent-row">
@@ -636,16 +689,33 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	}
 
 	function addRecurringEntry(questionId, kind) {
-		const ids = getRecurringCostIds(questionId);
 		const mix = getRecurringMix(questionId);
-		const selectEl = document.getElementById(kind === 'buffer' ? ids.bufferSelectId : ids.solventSelectId);
-		const pctEl = document.getElementById(kind === 'buffer' ? ids.bufferPctId : ids.solventPctId);
-		if (!selectEl || !pctEl) return;
+		const ids = getRecurringCostIds(questionId);
+		let selectEl = null;
+		let pctEl = null;
+		let list = null;
+		if (kind === 'buffer') {
+			selectEl = document.getElementById(ids.bufferSelectId);
+			pctEl = document.getElementById(ids.bufferPctId);
+			list = mix.buffers;
+		} else if (kind === 'modifier') {
+			selectEl = document.getElementById(ids.modifierSelectId);
+			pctEl = document.getElementById(ids.modifierPctId);
+			list = mix.modifiers;
+		} else if (kind === 'reverse_phase_solvent') {
+			selectEl = document.getElementById(ids.reversePhaseSelectId);
+			pctEl = document.getElementById(ids.reversePhasePctId);
+			list = mix.reversePhaseSolvents;
+		} else {
+			selectEl = document.getElementById(ids.normalPhaseSelectId);
+			pctEl = document.getElementById(ids.normalPhasePctId);
+			list = mix.normalPhaseSolvents;
+		}
+		if (!selectEl || !pctEl || !list) return;
 		const price = Number(selectEl.value);
 		const pct = Number(pctEl.value);
 		if (isNaN(price) || isNaN(pct) || pct <= 0 || pct > 100) return;
 		const name = selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : '';
-		const list = kind === 'buffer' ? mix.buffers : mix.solvents;
 		list.push({ name, price, pct });
 		pctEl.value = '';
 		renderRecurringList(questionId, kind);
@@ -686,7 +756,8 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		return rows.map(row => ({
 			...row,
 			price: row.price !== undefined && row.price !== '' ? Number(row.price) : NaN,
-			type: row.type || row.group || 'Other'
+			type: row.type || row.group || 'Other',
+			phase: row.phase || row.Phase || row.section || 'Other'
 		})).filter(row => row.name && !isNaN(row.price));
 	}
 
@@ -754,8 +825,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		}
 	}
 
-	function groupRowsByType(rows) {
+	function groupRowsByType(rows, phase = null) {
 		return rows.reduce((groups, row) => {
+			if (phase && String(row.phase || '').toLowerCase() !== String(phase).toLowerCase()) return groups;
 			const group = row.type || 'Other';
 			if (!groups[group]) groups[group] = [];
 			groups[group].push({ label: row.name, value: row.price, length: row.length || row.length_mm || '' });
@@ -813,26 +885,32 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		const runMinutes = parseFloat(runEl ? runEl.value : '');
 		const flowRate = parseFloat(flowEl ? flowEl.value : '');
 		const mix = getRecurringMix(questionId);
-		const solvents = Array.isArray(mix.solvents) ? mix.solvents : [];
+		const normalPhaseSolvents = Array.isArray(mix.normalPhaseSolvents) ? mix.normalPhaseSolvents : [];
+		const reversePhaseSolvents = Array.isArray(mix.reversePhaseSolvents) ? mix.reversePhaseSolvents : [];
+		const solvents = [...normalPhaseSolvents, ...reversePhaseSolvents];
+		const modifiers = Array.isArray(mix.modifiers) ? mix.modifiers : [];
 		const buffers = Array.isArray(mix.buffers) ? mix.buffers : [];
+		mix.solvents = solvents;
 		let total = '';
-		if (!isNaN(columnCost) && !isNaN(runMinutes) && !isNaN(flowRate) && solvents.length > 0) {
+		const hasAnyEntries = solvents.length > 0 || modifiers.length > 0 || buffers.length > 0;
+		if (!isNaN(columnCost) && !isNaN(runMinutes) && !isNaN(flowRate) && hasAnyEntries) {
 			const totalVolumeMl = runMinutes * flowRate;
-			const solventCost = solvents.reduce((sum, entry) => sum + (totalVolumeMl * (entry.pct / 100) * entry.price), 0);
-			const waterPct = solvents.reduce((sum, entry) => sum + (entry.name.toLowerCase().includes('water') ? entry.pct : 0), 0);
-			const waterVolumeMl = totalVolumeMl * (waterPct / 100);
-			const bufferCost = buffers.reduce((sum, entry) => sum + (waterVolumeMl * (entry.pct / 100) * entry.price), 0);
-			const variableCost = solventCost + bufferCost;
+			const totalVolumeL = totalVolumeMl / 1000;
+			const solventCost = solvents.reduce((sum, entry) => sum + ((totalVolumeMl * (entry.pct / 100)) * entry.price / 1000), 0);
+			const modifierCost = modifiers.reduce((sum, entry) => sum + (totalVolumeL * entry.pct * entry.price), 0);
+			const bufferCost = buffers.reduce((sum, entry) => sum + (totalVolumeL * entry.pct * entry.price), 0);
+			const variableCost = solventCost + modifierCost + bufferCost;
 			total = (columnCost + variableCost).toFixed(2);
 			console.groupCollapsed && console.groupCollapsed(`Recurring cost calculation: ${questionId}`);
 			console.log('column cost', columnCost);
 			console.log('run minutes', runMinutes);
 			console.log('flow rate', flowRate);
 			console.log('total mobile phase volume (mL)', totalVolumeMl);
+			console.log('total mobile phase volume (L)', totalVolumeL);
 			console.log('solvent entries', solvents);
 			console.log('solvent subtotal', solventCost);
-			console.log('water percentage from solvents', waterPct);
-			console.log('water volume for buffer basis (mL)', waterVolumeMl);
+			console.log('modifier entries', modifiers);
+			console.log('modifier subtotal', modifierCost);
 			console.log('buffer entries', buffers);
 			console.log('buffer subtotal', bufferCost);
 			console.log('variable cost', variableCost);
@@ -848,7 +926,10 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		else delete ANSWERS[questionId + '_run'];
 		if (!isNaN(flowRate)) ANSWERS[questionId + '_flow'] = String(flowRate);
 		else delete ANSWERS[questionId + '_flow'];
+		ANSWERS[questionId + '_normal_phase_solvent_entries'] = JSON.stringify(normalPhaseSolvents);
+		ANSWERS[questionId + '_reverse_phase_solvent_entries'] = JSON.stringify(reversePhaseSolvents);
 		ANSWERS[questionId + '_solvent_entries'] = JSON.stringify(solvents);
+		ANSWERS[questionId + '_modifier_entries'] = JSON.stringify(modifiers);
 		ANSWERS[questionId + '_buffer_entries'] = JSON.stringify(buffers);
 		if (total !== '') {
 			ANSWERS[questionId] = total;
@@ -1087,10 +1168,13 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			delete ANSWERS[ids.columnNameId];
 			delete ANSWERS[q.id + '_run'];
 			delete ANSWERS[q.id + '_flow'];
+			delete ANSWERS[q.id + '_normal_phase_solvent_entries'];
+			delete ANSWERS[q.id + '_reverse_phase_solvent_entries'];
 			delete ANSWERS[q.id + '_solvent_entries'];
+			delete ANSWERS[q.id + '_modifier_entries'];
 			delete ANSWERS[q.id + '_buffer_entries'];
 			delete ANSWERS[q.id + '_total'];
-			RECURRING_MIXES[q.id] = { solvents: [], buffers: [] };
+			RECURRING_MIXES[q.id] = { solvents: [], normalPhaseSolvents: [], reversePhaseSolvents: [], modifiers: [], buffers: [] };
 		}
 		if (q.type === 'chem_lookup') {
 			delete ANSWERS[q.id + '_name'];
@@ -1115,6 +1199,22 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			}
 		});
 		checkFormValidity();
+	}
+
+	function formatUnitLabel(unit) {
+		if (unit === null || unit === undefined) return '';
+		const raw = String(unit).trim();
+		if (!raw) return '';
+
+		const lower = raw.toLowerCase();
+		if (lower === 'mins' || lower === 'minutes' || lower === 'minute' || lower === 'min') return 'min';
+		if (lower === 'ml' || lower === 'milliliter' || lower === 'millilitres') return 'mL';
+		if (lower === 'μg/ml' || lower === 'ug/ml' || lower === 'µg/ml') return 'μg/mL';
+
+		return raw
+			.replace(/\bmins?\b/gi, 'min')
+			.replace(/\bminutes?\b/gi, 'min')
+			.replace(/\bml\b/gi, 'mL');
 	}
 
 	function renderQuestions() {
@@ -1146,13 +1246,16 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 					   </div>
 				   `;
 			   } else if (q.type === 'number') {
-				   input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${q.unit || ''}</span></div>`;
+				   const unitLabel = formatUnitLabel(q.unit);
+				   input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${unitLabel}</span></div>`;
 			   } else if (q.type === 'text') {
 				   input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
 			} else if (q.type === 'recurring_cost_calculator') {
 				const columnTypes = getColumnTypes(COLUMN_OPTIONS);
-				const solventGroups = groupRowsByType(SOLVENT_OPTIONS);
-				const bufferGroups = groupRowsByType(BUFFER_OPTIONS);
+				const normalPhaseGroups = groupRowsByType(SOLVENT_OPTIONS, 'Normal');
+				const reversePhaseGroups = groupRowsByType(SOLVENT_OPTIONS, 'Reverse');
+				const modifierGroups = groupRowsByType(BUFFER_OPTIONS, 'Modifier');
+				const bufferGroups = groupRowsByType(BUFFER_OPTIONS, 'Buffer');
 				const ids = getRecurringCostIds(q.id);
 				input = `
 					<div class="recurring-cost-calc" id="${q.id}_recurring_cost_calc" data-question-id="${q.id}">
@@ -1168,7 +1271,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 								</select>
 							</div>
 							<div class="recurring-cost-field">
-								<label id="${q.id}_run_label" for="${q.id}_run" class="input-label-small">Total run (mins)</label>
+								<label id="${q.id}_run_label" for="${q.id}_run" class="input-label-small">Total run (min)</label>
 								<input id="${q.id}_run" name="${q.id}_run" type="number" min="0" step="any" placeholder="0" class="form-input">
 							</div>
 							<div class="recurring-cost-field">
@@ -1177,17 +1280,17 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 							</div>
 						</div>
 						<div class="recurring-group recurring-group-solvent">
-							<div class="recurring-group-title">Solvent Composition</div>
+							<div class="recurring-group-title">Normal phase composition</div>
 							<div class="recurring-inline-add">
 								<span class="input-label-small">Add solvent</span>
-								${renderMappedSelect(q.id + '_solvent_select', solventGroups, 'Select solvent')}
+								${renderMappedSelect(ids.normalPhaseSelectId, normalPhaseGroups, 'Select solvent')}
 								<span class="input-label-small">at</span>
-								<input id="${q.id}_solvent_pct" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
+								<input id="${ids.normalPhasePctId}" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
 								<span class="input-label-small">%</span>
-								<button id="${q.id}_add_solvent" type="button" class="btn-add">Add</button>
+								<button id="${ids.normalPhaseAddBtnId}" type="button" class="btn-add">Add</button>
 							</div>
 							<div class="solvent-table-wrap">
-								<table class="solvent-table" aria-label="Added solvent composition">
+								<table class="solvent-table" aria-label="Added normal phase composition">
 									<thead>
 										<tr>
 											<th>Solvent</th>
@@ -1196,39 +1299,91 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 											<th>Remove</th>
 										</tr>
 									</thead>
-									<tbody id="${q.id}_solvent_list"></tbody>
+									<tbody id="${ids.normalPhaseListId}"></tbody>
 								</table>
 							</div>
-							<div id="${q.id}_solvent_empty" class="solvent-empty">No solvents added yet</div>
+							<div id="${ids.normalPhaseEmptyId}" class="solvent-empty">No solvents added yet</div>
+						</div>
+
+						<div class="recurring-group recurring-group-solvent">
+							<div class="recurring-group-title">Reverse phase composition</div>
+							<div class="recurring-inline-add">
+								<span class="input-label-small">Add solvent</span>
+								${renderMappedSelect(ids.reversePhaseSelectId, reversePhaseGroups, 'Select solvent')}
+								<span class="input-label-small">at</span>
+								<input id="${ids.reversePhasePctId}" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
+								<span class="input-label-small">%</span>
+								<button id="${ids.reversePhaseAddBtnId}" type="button" class="btn-add">Add</button>
+							</div>
+							<div class="solvent-table-wrap">
+								<table class="solvent-table" aria-label="Added reverse phase composition">
+									<thead>
+										<tr>
+											<th>Solvent</th>
+											<th>Percent</th>
+											<th>Price</th>
+											<th>Remove</th>
+										</tr>
+									</thead>
+									<tbody id="${ids.reversePhaseListId}"></tbody>
+								</table>
+							</div>
+							<div id="${ids.reversePhaseEmptyId}" class="solvent-empty">No solvents added yet</div>
 						</div>
 
 						<div class="recurring-group recurring-group-buffer">
-							<div class="recurring-group-title">Buffer Additions</div>
+							<div class="recurring-group-title">Modifier</div>
+							<div class="recurring-inline-add recurring-buffer-add">
+								<span class="input-label-small">Add modifier</span>
+								${renderMappedSelect(ids.modifierSelectId, modifierGroups, 'Select modifier')}
+								<span class="input-label-small">at</span>
+								<input id="${ids.modifierPctId}" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
+								<span class="input-label-small">g/L or mL/L</span>
+								<button id="${ids.modifierAddBtnId}" type="button" class="btn-add">Add</button>
+							</div>
+							<div class="solvent-table-wrap">
+								<table class="solvent-table" aria-label="Added modifiers">
+									<thead>
+										<tr>
+											<th>Modifier</th>
+											<th>Amount</th>
+											<th>Price</th>
+											<th>Remove</th>
+										</tr>
+									</thead>
+									<tbody id="${ids.modifierListId}"></tbody>
+								</table>
+							</div>
+							<div id="${ids.modifierEmptyId}" class="solvent-empty">No modifiers added yet</div>
+						</div>
+
+						<div class="recurring-group recurring-group-buffer">
+							<div class="recurring-group-title">Buffer addition</div>
 							<div class="recurring-inline-add recurring-buffer-add">
 								<span class="input-label-small">Add buffer</span>
-								${renderMappedSelect(q.id + '_buffer_select', bufferGroups, 'Select buffer')}
+								${renderMappedSelect(ids.bufferSelectId, bufferGroups, 'Select buffer')}
 								<span class="input-label-small">at</span>
-								<input id="${q.id}_buffer_pct" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
-								<span class="input-label-small">% w/mL</span>
-								<button id="${q.id}_add_buffer" type="button" class="btn-add">Add</button>
+								<input id="${ids.bufferPctId}" type="number" min="0" max="100" step="1" class="form-input recurring-pct-input" placeholder="%">
+								<span class="input-label-small">g/L or mL/L</span>
+								<button id="${ids.bufferAddBtnId}" type="button" class="btn-add">Add</button>
 							</div>
 							<div class="solvent-table-wrap">
 								<table class="solvent-table" aria-label="Added buffer composition">
 									<thead>
 										<tr>
 											<th>Buffer</th>
-											<th>Percent</th>
+											<th>Amount</th>
 											<th>Price</th>
 											<th>Remove</th>
 										</tr>
 									</thead>
-									<tbody id="${q.id}_buffer_list"></tbody>
+									<tbody id="${ids.bufferListId}"></tbody>
 								</table>
 							</div>
-							<div id="${q.id}_buffer_empty" class="solvent-empty">No buffers added yet</div>
+							<div id="${ids.bufferEmptyId}" class="solvent-empty">No buffers added yet</div>
 						</div>
 						<div class="chem-lookup-total-section">
-							<label for="${q.id}_total" class="input-label-small">Total recurring cost (USD)</label>
+							<label for="${q.id}_total" class="input-label-small">Total analytical consumables cost (USD)</label>
 							<input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
 						</div>
 					</div>
@@ -1354,11 +1509,11 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	   });
 
 	   document.addEventListener('click', async function(e) {
-		   const recurringAddBtn = e.target && e.target.closest ? e.target.closest('button[id$="_add_solvent"], button[id$="_add_buffer"]') : null;
+		   const recurringAddBtn = e.target && e.target.closest ? e.target.closest('button[id$="_add_normal_phase_solvent"], button[id$="_add_reverse_phase_solvent"], button[id$="_add_modifier"], button[id$="_add_buffer"]') : null;
 		   if (recurringAddBtn) {
-			   const isBuffer = recurringAddBtn.id.endsWith('_add_buffer');
-			   const questionId = recurringAddBtn.id.replace(/_(add_solvent|add_buffer)$/, '');
-			   addRecurringEntry(questionId, isBuffer ? 'buffer' : 'solvent');
+			   const questionId = recurringAddBtn.id.replace(/_(add_normal_phase_solvent|add_reverse_phase_solvent|add_modifier|add_buffer)$/, '');
+			   const kind = recurringAddBtn.id.endsWith('_add_buffer') ? 'buffer' : recurringAddBtn.id.endsWith('_add_modifier') ? 'modifier' : recurringAddBtn.id.endsWith('_add_reverse_phase_solvent') ? 'reverse_phase_solvent' : 'normal_phase_solvent';
+			   addRecurringEntry(questionId, kind);
 			   checkFormValidity();
 			   return;
 		   }
@@ -1369,9 +1524,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			   const kind = recurringRemoveBtn.getAttribute('data-recurring-kind');
 			   const idx = parseInt(recurringRemoveBtn.getAttribute('data-recurring-index'), 10);
 			   const mix = getRecurringMix(questionId);
-			   const list = kind === 'buffer' ? mix.buffers : mix.solvents;
+			   const list = kind === 'buffer' ? mix.buffers : kind === 'modifier' ? mix.modifiers : kind === 'reverse_phase_solvent' ? mix.reversePhaseSolvents : mix.normalPhaseSolvents;
 			   if (!isNaN(idx)) list.splice(idx, 1);
-			   renderRecurringList(questionId, kind === 'buffer' ? 'buffer' : 'solvent');
+			   renderRecurringList(questionId, kind);
 			   updateRecurringCostTotal(questionId);
 			   checkFormValidity();
 			   return;
@@ -1471,9 +1626,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			   }
 			   return;
 		   }
-		   if (el.id.endsWith('_solvent') || el.id.endsWith('_buffer')) {
+		   if (el.id.includes('_normal_phase_solvent_select') || el.id.includes('_reverse_phase_solvent_select') || el.id.includes('_modifier_select') || el.id.includes('_buffer_select')) {
 			   ANSWERS[el.id] = el.value;
-			   const qid = el.id.replace(/_(solvent|buffer)$/, '');
+			   const qid = el.id.replace(/_(normal_phase_solvent_select|reverse_phase_solvent_select|modifier_select|buffer_select)$/, '');
 			   if (document.getElementById(qid + '_recurring_cost_calc')) {
 				   updateRecurringCostTotal(qid);
 				   checkFormValidity();
@@ -1742,6 +1897,10 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		document.querySelector('main').classList.add('hidden');
 		document.getElementById('routine-analysis-btn').addEventListener('click', () => chooseAnalysisMode('routine'));
 		document.getElementById('advanced-analysis-btn').addEventListener('click', () => chooseAnalysisMode('advanced'));
+		const helpToggle = document.getElementById('section-guidance-toggle');
+		if (helpToggle) {
+			helpToggle.addEventListener('click', () => toggleSectionGuidance());
+		}
 		loadQuestionsFromCSV();
 	});
 	</script>
@@ -1871,7 +2030,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 					   val = 'debug';
 					   } else if (q.type === 'recurring_cost_calculator') {
 						   const ids = getRecurringCostIds(q.id);
-						   const solventRows = SOLVENT_OPTIONS.length ? SOLVENT_OPTIONS : [{ name: 'Water', price: 0.01 }, { name: 'Methanol', price: 0.08 }];
+						   const solventRows = SOLVENT_OPTIONS.length ? SOLVENT_OPTIONS : [{ name: 'Water', price: 0.01, phase: 'Normal' }, { name: 'Methanol', price: 0.08, phase: 'Normal' }];
 						   const bufferRows = BUFFER_OPTIONS.length ? BUFFER_OPTIONS : [{ name: 'Formic acid', price: 0.02 }];
 						   const columnTypes = getColumnTypes(COLUMN_OPTIONS);
 						   const selectedType = columnTypes.length > 0 ? columnTypes[Math.floor(Math.random() * columnTypes.length)] : 'C18';
@@ -1887,6 +2046,8 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 							   { name: water.name, price: Number(water.price), pct: 60 },
 							   { name: organic.name, price: Number(organic.price), pct: 40 }
 						   ];
+						   const normalPhaseEntries = solventEntries.slice(0, 1);
+						   const reversePhaseEntries = solventEntries.slice(1);
 						   const bufferEntries = [
 							   { name: buffer.name, price: Number(buffer.price), pct: 10 }
 						   ];
@@ -1894,6 +2055,8 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						   ANSWERS[ids.columnNameId] = selectedColumn.fullName || selectedColumn.name || String(columnPrice);
 						   ANSWERS[q.id + '_run'] = run;
 						   ANSWERS[q.id + '_flow'] = flow;
+						   ANSWERS[q.id + '_normal_phase_solvent_entries'] = JSON.stringify(normalPhaseEntries);
+						   ANSWERS[q.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reversePhaseEntries);
 						   ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(solventEntries);
 						   ANSWERS[q.id + '_buffer_entries'] = JSON.stringify(bufferEntries);
 						   const totalVolume = Number(run) * Number(flow);
@@ -1930,12 +2093,15 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						   if (flowEl) flowEl.value = ANSWERS[q.id + '_flow'];
 						   if (totalEl) totalEl.value = ANSWERS[q.id];
 						   const mix = getRecurringMix(q.id);
-						   mix.solvents = parseRecurringEntries(ANSWERS[q.id + '_solvent_entries']);
+						   mix.normalPhaseSolvents = parseRecurringEntries(ANSWERS[q.id + '_normal_phase_solvent_entries']);
+						   mix.reversePhaseSolvents = parseRecurringEntries(ANSWERS[q.id + '_reverse_phase_solvent_entries']);
 						   mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
+						   mix.solvents = [...mix.normalPhaseSolvents, ...mix.reversePhaseSolvents];
 						   if (columnTypeEl && ANSWERS[ids.columnTypeId]) {
 							   populateColumnNames(q.id, ANSWERS[ids.columnTypeId]);
 						   }
-						   renderRecurringList(q.id, 'solvent');
+						   renderRecurringList(q.id, 'normal_phase_solvent');
+						   renderRecurringList(q.id, 'reverse_phase_solvent');
 						   renderRecurringList(q.id, 'buffer');
 						   updateRecurringCostTotal(q.id);
 				   }

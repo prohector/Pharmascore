@@ -1,5 +1,15 @@
-type,name,price
-Acidic,Formic acid,0.02
-Acidic,Acetic acid,0.015
-Neutral,Ammonium acetate,0.03
-Basic,Ammonium hydroxide,0.04
+section,type,name,price
+Modifier,Acidic,Formic Acid (LC/MS grade),150.0
+Modifier,Acidic,Formic Acid (HPLC grade),55.0
+Modifier,Acidic,Acetic Acid (LC/MS grade),100.0
+Modifier,Acidic,Acetic Acid (HPLC grade),30.0
+Buffer,Neutral,Ammonium Formate (LC/MS grade),200.0
+Buffer,Neutral,Ammonium Formate (HPLC grade),100.0
+Buffer,Neutral,Ammonium Acetate (LC/MS grade),200.0
+Buffer,Neutral,Ammonium Acetate (HPLC grade),95.0
+Buffer,Basic,Ammonium Hydroxide (LC/MS grade),95.0
+Buffer,Basic,Ammonium Hydroxide (HPLC grade),40.0
+Buffer,Inorganic,Phosphate Buffer (Na/K phosphate),60.0
+Modifier,Basic,Triethylamine (TEA),70.0
+Buffer,Basic,Borate Buffer,55.0
+Buffer,Basic,Carbonate / Bicarbonate Buffer,45.0

@@ -55,7 +55,6 @@ header p {
 	color: #a8c5dc;
 	margin-top: 8px;
 	font-weight: 500;
-	text-transform: uppercase;
 	letter-spacing: 0.5px;
 }
 
@@ -71,25 +70,47 @@ main {
 
 main:not(.hidden) {
 	display: grid;
-	grid-template-columns: 260px 1fr;
-	gap: 28px;
+	grid-template-columns: 1fr;
+	gap: 24px;
 }
 
 main.hidden {
 	display: none;
 }
 
-.section-guidance {
-	grid-column: 1;
-	grid-row: 1 / span 3;
+.section-guidance-toggle {
+	justify-self: start;
 	align-self: start;
-	position: sticky;
-	top: 20px;
+	background: #2d5a7b;
+	color: #ffffff;
+	border: 0;
+	border-radius: 999px;
+	padding: 8px 14px;
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+	box-shadow: 0 6px 14px rgba(26, 58, 82, 0.14);
+	z-index: 20;
+}
+
+.section-guidance-toggle:hover {
+	background: #21455f;
+}
+
+.section-guidance {
+	position: fixed;
+	left: 20px;
+	top: 120px;
+	width: min(320px, calc(100vw - 40px));
+	max-height: calc(100vh - 140px);
+	overflow: auto;
 	background: #f8fafb;
 	border: 1px solid #d7e3ee;
 	border-left: 4px solid #2d5a7b;
 	border-radius: 10px;
 	padding: 16px 14px;
+	box-shadow: 0 12px 30px rgba(26, 58, 82, 0.16);
+	z-index: 30;
 }
 
 .section-guidance h3 {
@@ -123,13 +144,13 @@ main.hidden {
 #section-subtitle,
 #assessment-form,
 .form-buttons {
-	grid-column: 2;
+	grid-column: 1;
 }
 
 .section-subtitle {
 	font-size: 14px;
 	color: #5a6f82;
-	margin-top: -18px;
+	margin-top: 0;
 	margin-bottom: 20px;
 }
 
@@ -313,7 +334,6 @@ nav {
 	border: none;
 	outline: none;
 	border-radius: 6px 6px 0 0;
-	text-transform: uppercase;
 	letter-spacing: 0.3px;
 	font-size: 13px;
 }
@@ -550,7 +570,6 @@ nav {
 	cursor: pointer;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	font-size: 13px;
-	text-transform: uppercase;
 	letter-spacing: 0.3px;
 }
 
@@ -591,7 +610,6 @@ nav {
 	font-weight: 600;
 	color: #5a6f82;
 	margin-bottom: 6px;
-	text-transform: uppercase;
 	letter-spacing: 0.3px;
 }
 
