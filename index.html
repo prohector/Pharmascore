@@ -64,7 +64,7 @@
 			<p id="guidance-summary">Follow the prompts and enter values carefully.</p>
 			<ul id="guidance-steps"></ul>
 		</aside>
-		<h2 id="section-title">Solvents &amp; Energy</h2>
+		<h2 id="section-title" class="section-title"><span class="section-icon-slot" data-icon-key="solvents-energy" style="--icon-url: url('./assets/icons/solvents-energy.svg');" aria-hidden="true"></span><span class="section-title-text">Solvents &amp; Energy</span></h2>
 		<p id="section-subtitle" class="section-subtitle">Please answer all required fields in this section.</p>
 		<form id="assessment-form" autocomplete="off">
 			<!-- Questions will be rendered here -->
@@ -1132,10 +1132,20 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			const btn = document.createElement('button');
 			btn.type = 'button';
 			btn.className = 'tab-btn' + (idx === currentTab ? ' tab-btn-active' : '');
-			btn.textContent = area.title;
+			const iconKey = iconKeyFromText(area.title);
+			btn.innerHTML = `<span class="tab-icon-slot" data-icon-key="${iconKey}" style="--icon-url: url('./assets/icons/${iconKey}.svg');" aria-hidden="true"></span><span class="tab-label">${area.title}</span>`;
 			btn.onclick = () => { goToTab(idx); };
 			tabNav.appendChild(btn);
 		});
+	}
+
+	function iconKeyFromText(text) {
+		return String(text || '')
+			.toLowerCase()
+			.trim()
+			.replace(/&amp;/g, 'and')
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-+|-+$/g, '') || 'section';
 	}
 
 	function shouldShowQuestion(q) {
@@ -1223,7 +1233,8 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		const area = QUESTION_AREAS[currentTab];
 		   area.questions.forEach(q => {
 			   if (q.type === 'label') {
-				   form.innerHTML += `<div class="form-label-block">${q.text || ''}</div>`;
+				   const labelIconKey = iconKeyFromText(q.id || q.text || 'section');
+				   form.innerHTML += `<div class="form-label-block"><span class="label-icon-slot" data-icon-key="${labelIconKey}" aria-hidden="true"></span><div class="form-label-block-copy">${q.text || ''}</div></div>`;
 				   return;
 			   }
 			   const isConditional = q.show_if_id && q.show_if_value;
@@ -1280,7 +1291,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 							</div>
 						</div>
 						<div class="recurring-group recurring-group-solvent">
-							<div class="recurring-group-title">Normal phase composition</div>
+							<div class="recurring-group-title"><span class="group-icon-slot" data-icon-key="normal-phase" aria-hidden="true"></span><span>Normal phase composition</span></div>
 							<div class="recurring-inline-add">
 								<span class="input-label-small">Add solvent</span>
 								${renderMappedSelect(ids.normalPhaseSelectId, normalPhaseGroups, 'Select solvent')}
@@ -1306,7 +1317,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						</div>
 
 						<div class="recurring-group recurring-group-solvent">
-							<div class="recurring-group-title">Reverse phase composition</div>
+							<div class="recurring-group-title"><span class="group-icon-slot" data-icon-key="reverse-phase" aria-hidden="true"></span><span>Reverse phase composition</span></div>
 							<div class="recurring-inline-add">
 								<span class="input-label-small">Add solvent</span>
 								${renderMappedSelect(ids.reversePhaseSelectId, reversePhaseGroups, 'Select solvent')}
@@ -1332,7 +1343,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						</div>
 
 						<div class="recurring-group recurring-group-buffer">
-							<div class="recurring-group-title">Modifier</div>
+							<div class="recurring-group-title"><span class="group-icon-slot" data-icon-key="modifier" aria-hidden="true"></span><span>Modifier</span></div>
 							<div class="recurring-inline-add recurring-buffer-add">
 								<span class="input-label-small">Add modifier</span>
 								${renderMappedSelect(ids.modifierSelectId, modifierGroups, 'Select modifier')}
@@ -1358,7 +1369,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						</div>
 
 						<div class="recurring-group recurring-group-buffer">
-							<div class="recurring-group-title">Buffer addition</div>
+							<div class="recurring-group-title"><span class="group-icon-slot" data-icon-key="buffer" aria-hidden="true"></span><span>Buffer addition</span></div>
 							<div class="recurring-inline-add recurring-buffer-add">
 								<span class="input-label-small">Add buffer</span>
 								${renderMappedSelect(ids.bufferSelectId, bufferGroups, 'Select buffer')}
@@ -1721,7 +1732,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	   });
 
 	function updateSectionTitle() {
-		document.getElementById('section-title').textContent = QUESTION_AREAS[currentTab].title;
+		const title = document.querySelector('#section-title .section-title-text');
+		if (title) title.textContent = QUESTION_AREAS[currentTab].title;
+		else document.getElementById('section-title').textContent = QUESTION_AREAS[currentTab].title;
 		updateSectionGuidance();
 	}
 

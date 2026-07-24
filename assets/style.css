@@ -33,7 +33,7 @@ body {
 
 header {
 	width: 100%;
-	max-width: 700px;
+	max-width: 920px;
 	background: linear-gradient(135deg, #1a3a52 0%, #2d5a7b 100%);
 	box-shadow: 0 4px 12px rgba(26, 58, 82, 0.15);
 	padding: 28px 24px;
@@ -60,7 +60,7 @@ header p {
 
 main {
 	width: 100%;
-	max-width: 980px;
+	max-width: 920px;
 	background-color: #ffffff;
 	border-radius: 12px;
 	box-shadow: 0 8px 24px rgba(26, 58, 82, 0.08);
@@ -147,6 +147,33 @@ main.hidden {
 	grid-column: 1;
 }
 
+.section-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.section-title-text {
+	display: inline-block;
+}
+
+.section-icon-slot,
+.tab-icon-slot,
+.label-icon-slot,
+.group-icon-slot {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1rem;
+	height: 1rem;
+	background-color: transparent;
+	background-image: var(--icon-url);
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: contain;
+}
+
 .section-subtitle {
 	font-size: 14px;
 	color: #5a6f82;
@@ -192,7 +219,7 @@ main.hidden {
 
 .analysis-gate {
 	width: 100%;
-	max-width: 700px;
+	max-width: 920px;
 	margin: 0 0 24px 0;
 	padding: 28px 24px;
 	border-radius: 16px;
@@ -265,10 +292,11 @@ main.hidden {
 
 #progress-indicator {
 	width: 100%;
-	max-width: 700px;
+	max-width: 920px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	flex-wrap: wrap;
 	margin-bottom: 20px;
 	gap: 12px;
 	padding: 0 8px;
@@ -294,7 +322,8 @@ main.hidden {
 #progress-label {
 	font-size: 12px;
 	color: #5a6f82;
-	white-space: nowrap;
+	white-space: normal;
+	text-align: center;
 	margin-left: 0px;
 	font-weight: 600;
 	letter-spacing: 0.3px;
@@ -306,12 +335,13 @@ main.hidden {
 
 nav {
 	width: 100%;
-	max-width: 700px;
+	max-width: 920px;
 	margin-bottom: 12px;
 }
 
 #tab-nav {
 	display: flex;
+	flex-wrap: wrap;
 	border-bottom: 2px solid #e0e8f0;
 	gap: 0;
 	background-color: #f8fafb;
@@ -321,8 +351,10 @@ nav {
 }
 
 .tab-btn {
-	flex: 1;
-	padding: 12px 14px;
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 9px 8px;
+	min-height: 56px;
 	text-align: center;
 	font-weight: 600;
 	font-size: 14px;
@@ -336,6 +368,26 @@ nav {
 	border-radius: 6px 6px 0 0;
 	letter-spacing: 0.3px;
 	font-size: 13px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-direction: column;
+	gap: 4px;
+	white-space: normal;
+	line-height: 1.2;
+	overflow-wrap: normal;
+	word-break: normal;
+	hyphens: none;
+}
+
+.tab-label {
+	display: block;
+	max-width: 100%;
+	white-space: normal;
+	word-break: normal;
+	overflow-wrap: normal;
+	text-align: center;
+	margin: 0 auto;
 }
 
 .tab-btn:hover:not(.tab-btn-active) {
@@ -376,16 +428,27 @@ nav {
 #assessment-form {
 	display: flex;
 	flex-direction: column;
+	align-items: flex-start;
 	gap: 32px;
 }
 
 .form-label-block {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	max-width: 46rem;
+	width: 100%;
 	padding: 14px 16px;
 	border-left: 4px solid #2d5a7b;
 	background-color: #f8fafb;
 	border-radius: 8px;
 	color: #1a3a52;
 	line-height: 1.5;
+}
+
+.form-label-block-copy {
+	flex: 1;
+	min-width: 0;
 }
 
 .form-label-block h3,
@@ -403,7 +466,11 @@ nav {
 }
 
 .form-question {
+	max-width: 46rem;
+	width: 100%;
 	margin-bottom: 0px;
+	display: grid;
+	gap: 10px;
 }
 
 .boolean-group {
@@ -450,7 +517,7 @@ nav {
 
 .form-input {
 	display: block;
-	width: 100%;
+	width: min(100%, 34rem);
 	padding: 11px 14px;
 	border: 1.5px solid #d4dce5;
 	border-radius: 7px;
@@ -461,6 +528,42 @@ nav {
 	transition: border-color 0.3s, box-shadow 0.3s, background-color 0.2s;
 	margin-top: 6px;
 	font-weight: 400;
+}
+
+select.form-input {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	padding-right: 42px;
+	background-image:
+		linear-gradient(45deg, transparent 50%, #1a3a52 50%),
+		linear-gradient(135deg, #1a3a52 50%, transparent 50%),
+		linear-gradient(to right, rgba(45, 90, 123, 0.14), rgba(45, 90, 123, 0.14));
+	background-position:
+		calc(100% - 18px) center,
+		calc(100% - 12px) center,
+		calc(100% - 44px) center;
+	background-size: 6px 6px, 6px 6px, 1px 60%;
+	background-repeat: no-repeat;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgba(26, 58, 82, 0.05);
+	border-color: #c9d5e2;
+}
+
+select.form-input:hover {
+	border-color: #a8c5dc;
+	background-color: #fbfdff;
+}
+
+select.form-input:focus {
+	background-color: #f8fafb;
+	border-color: #1f5a83;
+	box-shadow: 0 0 0 4px rgba(31, 90, 131, 0.1), 0 4px 14px rgba(26, 58, 82, 0.08);
+}
+
+select.form-input:disabled {
+	background-image: none;
+	cursor: not-allowed;
 }
 
 .form-input:focus {
@@ -513,6 +616,8 @@ nav {
    =========================== */
 
 .chem-lookup-container {
+	max-width: 46rem;
+	width: 100%;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: flex-start;
@@ -532,6 +637,7 @@ nav {
 .chem-lookup-name-wrapper .form-input {
 	flex: 1;
 	min-width: 0;
+	width: 100%;
 	margin-top: 0px;
 }
 
@@ -592,6 +698,8 @@ nav {
 
 /* Chemical Lookup Price Section */
 .chem-lookup-price-section {
+	max-width: 46rem;
+	width: 100%;
 	margin-top: 16px;
 	display: grid;
 	grid-template-columns: 2fr 1fr;
@@ -621,6 +729,7 @@ nav {
 
 .chem-lookup-price-input-wrapper .form-input {
 	flex: 1;
+	width: 100%;
 	margin-top: 0px;
 	background-color: #ffffff;
 	color: #1a3a52;
@@ -668,11 +777,14 @@ nav {
 }
 
 .chem-lookup-grams-wrapper .form-input {
+	width: 100%;
 	margin-top: 20px;
 }
 
 /* Chemical Lookup Total Section */
 .chem-lookup-total-section {
+	max-width: 46rem;
+	width: 100%;
 	margin-top: 16px;
 }
 
@@ -682,6 +794,7 @@ nav {
 
 .chem-lookup-total-section .form-input {
 	margin-top: 0px;
+	width: 100%;
 	font-weight: 600;
 	letter-spacing: 0.3px;
 }
@@ -786,7 +899,7 @@ nav {
 
 .recurring-inline-add {
 	display: grid;
-	grid-template-columns: auto 1fr auto 90px auto auto;
+	grid-template-columns: auto minmax(0, 1fr) auto 92px auto auto;
 	gap: 8px;
 	align-items: center;
 	margin: 10px 0;
@@ -801,12 +914,40 @@ nav {
 }
 
 .recurring-group-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
 	font-size: 12px;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.4px;
 	color: #3d5a73;
 	margin-bottom: 6px;
+}
+
+.btn-add {
+	min-width: 92px;
+	padding: 10px 16px;
+	border-radius: 999px;
+	background: linear-gradient(135deg, #0f766e 0%, #16a34a 100%);
+	color: #ffffff;
+	box-shadow: 0 10px 18px rgba(22, 163, 74, 0.18);
+	border: 1px solid rgba(15, 118, 110, 0.18);
+	font-size: 13px;
+	text-transform: none;
+	letter-spacing: 0.2px;
+	font-weight: 700;
+}
+
+.btn-add:hover {
+	background: linear-gradient(135deg, #0f5f57 0%, #12813b 100%);
+	box-shadow: 0 14px 22px rgba(22, 163, 74, 0.22);
+}
+
+.btn-add:disabled {
+	opacity: 0.5;
+	box-shadow: none;
+	transform: none;
 }
 
 .recurring-group-buffer {
@@ -913,6 +1054,14 @@ nav {
 	border-width: 6px;
 	border-style: solid;
 	border-color: #1a3a52 transparent transparent transparent;
+}
+
+.recurring-cost-calc {
+	max-width: 46rem;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
 }
 
 /* ===========================
@@ -1157,6 +1306,24 @@ button[type="button"]:disabled {
 
 	nav {
 		max-width: 100%;
+	}
+
+	#tab-nav {
+		gap: 6px;
+	}
+
+	.tab-btn {
+		flex: 1 1 calc(50% - 6px);
+		min-width: 0;
+		padding: 8px 6px;
+		font-size: 12px;
+		white-space: normal;
+		min-height: 54px;
+	}
+
+	.tab-icon-slot {
+		width: 0.9rem;
+		height: 0.9rem;
 	}
 
 	#section-title {
