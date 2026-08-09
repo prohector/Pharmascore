@@ -44,9 +44,9 @@
 	<!-- Progress Indicator -->
 	<div id="progress-indicator">
 		<div class="progress-bar-container">
-			<div id="progress-bar" style="width: 25%"></div>
+			<div id="progress-bar" style="width: 16.6667%"></div>
 		</div>
-		<span id="progress-label">Section 1 of 4: Solvents &amp; Energy</span>
+		<span id="progress-label">Section 1 of 6: Solvents &amp; Energy</span>
 	</div>
 
 	<!-- Tab Navigation -->
@@ -66,6 +66,7 @@
 		</aside>
 		<h2 id="section-title" class="section-title"><span class="section-icon-slot" data-icon-key="solvents-energy" style="--icon-url: url('./assets/icons/solvents-energy.svg');" aria-hidden="true"></span><span class="section-title-text">Solvents &amp; Energy</span></h2>
 		<p id="section-subtitle" class="section-subtitle">Please answer all required fields in this section.</p>
+		<div id="fixed-cost-subtabs" class="fixed-cost-subtabs hidden" aria-label="Fixed cost subsections"></div>
 		<form id="assessment-form" autocomplete="off">
 			<!-- Questions will be rendered here -->
 		</form>
@@ -80,6 +81,7 @@
 	<!-- Results Section -->
 	   <section id="results-section" class="hidden">
 		   <h3>Assessment Results</h3>
+	  <div id="results-price-summary" class="results-price-summary"></div>
 		  <div id="results-graphic"></div>
 		  <div id="debug-scores"></div>
 		   <button id="retake-btn" type="button" class="btn-retake">Retake Assessment</button>
@@ -95,7 +97,14 @@
 	let SOLVENT_OPTIONS = [];
 	let COLUMN_OPTIONS = [];
 	let BUFFER_OPTIONS = [];
+	let INSTRUMENT_OPTIONS = [];
 	let SOURCES_LOADED = false;
+	let fixedCostsSubTab = 0;
+	const FIXED_COST_SUBTABS = [
+		{ title: 'Section 1: Basic Equipment', questionIds: ['equip_basic'] },
+		{ title: 'Section 2: Columns', questionIds: ['equip_section2'] },
+		{ title: 'Section 3: Auxiliary Equipment', questionIds: ['equip_section3', 'aux_pretreat_basic', 'aux_pretreat_advanced', 'aux_pretreat_omics'] }
+	];
 	const FALLBACK_COLUMNS_CSV = `Type,Length,Diameter,Price (avg),Full name and characteristics
 C18,50 mm,4.6 mm,350 €,"C18, Zorbax SB-C18, Agilent (50 × 4.6 mm), 3–5 μm"
 C18,100 mm,4.6 mm,500 €,"C18, Zorbax SB-C18, Agilent (100 × 4.6 mm), 3–5 μm"
@@ -294,11 +303,11 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			]
 		},
 		'Equipment Fixed Costs': {
-			summary: 'This section captures one-time or infrastructure-related economic choices.',
+			summary: 'This section captures one-time or infrastructure-related economic choices across three sub-tabs.',
 			steps: [
-				'Select the detector type that best matches your method setup.',
-				'If multiple detectors are used, choose the main one used for routine analysis.',
-				'Then continue to analytical consumables for per-run calculations.'
+				'Use the three sub-tabs to move through basic equipment, column costs, and auxiliary pretreatment costs.',
+				'Select one basic instrument from the dropdown in section 1.',
+				'Complete the column selector in section 2 and the auxiliary checklists in section 3.'
 			]
 		},
 		'Analytical Consumables': {
@@ -346,10 +355,93 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		const subtitleEl = document.getElementById('section-subtitle');
 		if (titleEl) titleEl.textContent = `How To Complete: ${area.title}`;
 		if (summaryEl) summaryEl.textContent = guidance.summary;
-		if (subtitleEl) subtitleEl.textContent = guidance.summary;
+		if (subtitleEl) {
+			if (isFixedCostsArea(area)) {
+				subtitleEl.textContent = `${getFixedCostSubTab().title}. ${guidance.summary}`;
+			} else {
+				subtitleEl.textContent = guidance.summary;
+			}
+		}
 		if (stepsEl) {
 			stepsEl.innerHTML = guidance.steps.map(step => `<li>${step}</li>`).join('');
 		}
+	}
+
+	function isFixedCostsArea(area) {
+		return !!area && area.title === 'Equipment Fixed Costs';
+	}
+
+	function getFixedCostSubTab() {
+		return FIXED_COST_SUBTABS[fixedCostsSubTab] || FIXED_COST_SUBTABS[0];
+	}
+
+	function getQuestionsForCurrentView(area) {
+		if (!area) return [];
+		if (!isFixedCostsArea(area)) return area.questions || [];
+		const activeSubTab = getFixedCostSubTab();
+		const activeIds = new Set(activeSubTab.questionIds);
+		return (area.questions || []).filter(q => activeIds.has(q.id));
+	}
+
+	function getViewCount() {
+		return QUESTION_AREAS.reduce((total, area) => total + (isFixedCostsArea(area) ? FIXED_COST_SUBTABS.length : 1), 0);
+	}
+
+	function getCurrentViewIndex() {
+		let index = 0;
+		for (let i = 0; i < currentTab; i++) {
+			index += isFixedCostsArea(QUESTION_AREAS[i]) ? FIXED_COST_SUBTABS.length : 1;
+		}
+		if (isFixedCostsArea(QUESTION_AREAS[currentTab])) index += fixedCostsSubTab;
+		return index;
+	}
+
+	function renderFixedCostSubTabs() {
+		const container = document.getElementById('fixed-cost-subtabs');
+		if (!container) return;
+		const area = QUESTION_AREAS[currentTab];
+		if (!isFixedCostsArea(area)) {
+			container.innerHTML = '';
+			container.classList.add('hidden');
+			return;
+		}
+		container.classList.remove('hidden');
+		container.innerHTML = FIXED_COST_SUBTABS.map((subTab, idx) => `
+			<button type="button" class="fixed-cost-subtab-btn${idx === fixedCostsSubTab ? ' fixed-cost-subtab-btn-active' : ''}" data-fixed-cost-subtab="${idx}">${subTab.title}</button>
+		`).join('');
+		container.querySelectorAll('button[data-fixed-cost-subtab]').forEach(btn => {
+			btn.onclick = () => {
+				const nextIdx = Number(btn.getAttribute('data-fixed-cost-subtab'));
+				if (!Number.isFinite(nextIdx) || nextIdx === fixedCostsSubTab) return;
+				saveCurrentTabAnswers();
+				fixedCostsSubTab = nextIdx;
+				renderTabs();
+				renderQuestions();
+				updateSectionTitle();
+				updateProgress();
+				updateNavButtons();
+				checkFormValidity();
+			};
+		});
+	}
+
+	function renderEquipmentPriceSummary() {
+		const summaryEl = document.getElementById('results-price-summary');
+		if (!summaryEl) return;
+		const selectedName = ANSWERS.equip_basic_name || '';
+		const total = Number(ANSWERS.equip_basic_total !== undefined ? ANSWERS.equip_basic_total : ANSWERS.equip_basic);
+		if (!selectedName || !isFinite(total)) {
+			summaryEl.innerHTML = '';
+			return;
+		}
+		const formattedTotal = `${total.toLocaleString('en-US', { maximumFractionDigits: 0 })} EUR`;
+		summaryEl.innerHTML = `
+			<div class="results-price-card">
+				<span class="results-price-label">Total basic equipment price</span>
+				<strong class="results-price-value">${formattedTotal}</strong>
+				<span class="results-price-meta">${selectedName} selected from instruments.csv</span>
+			</div>
+		`;
 	}
 
 	function showQuestionnaireIfReady() {
@@ -421,12 +513,49 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	function saveCurrentTabAnswers() {
 		const area = QUESTION_AREAS[currentTab];
 		if (!area) return;
-		area.questions.forEach(q => {
+		getQuestionsForCurrentView(area).forEach(q => {
 			if (q.type === 'label') return;
 			if (q.type === 'boolean') {
 				const selected = document.querySelector(`input[name="${q.id}"]:checked`);
 				if (selected) ANSWERS[q.id] = selected.value;
 				else delete ANSWERS[q.id];
+				return;
+			}
+			if (q.type === 'equipment_checklist') {
+				const listEl = document.getElementById(q.id + '_equipment_list');
+				const totalEl = document.getElementById(q.id + '_total');
+				if (!listEl) return;
+				const selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
+				const selectedNames = selected.map(cb => cb.value);
+				const total = selected.reduce((sum, cb) => sum + Number(cb.getAttribute('data-price') || 0), 0);
+				if (selectedNames.length) ANSWERS[q.id + '_items'] = JSON.stringify(selectedNames);
+				else delete ANSWERS[q.id + '_items'];
+				if (selectedNames.length) {
+					ANSWERS[q.id] = String(total);
+					ANSWERS[q.id + '_total'] = total || '';
+					if (totalEl) totalEl.value = total || '';
+				} else {
+					delete ANSWERS[q.id];
+					delete ANSWERS[q.id + '_total'];
+					if (totalEl) totalEl.value = '';
+				}
+				return;
+			}
+			if (q.type === 'equipment_dropdown') {
+				const selectEl = document.getElementById(q.id);
+				const totalEl = document.getElementById(q.id + '_total');
+				const selectedOption = selectEl && selectEl.selectedOptions ? selectEl.selectedOptions[0] : null;
+				if (selectedOption) {
+					ANSWERS[q.id + '_name'] = selectedOption.value;
+					ANSWERS[q.id] = String(Number(selectedOption.getAttribute('data-price') || 0));
+					if (totalEl) totalEl.value = ANSWERS[q.id];
+					ANSWERS[q.id + '_total'] = ANSWERS[q.id];
+				} else {
+					delete ANSWERS[q.id + '_name'];
+					delete ANSWERS[q.id];
+					delete ANSWERS[q.id + '_total'];
+					if (totalEl) totalEl.value = '';
+				}
 				return;
 			}
 			if (q.type === 'solvent_calculator') {
@@ -455,6 +584,31 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(combinedSolvents);
 				ANSWERS[q.id + '_buffer_entries'] = JSON.stringify(mix.buffers || []);
 				if (totalEl) ANSWERS[q.id] = totalEl.value;
+				if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
+				return;
+			}
+			if (q.type === 'column_selector') {
+				const ids = getColumnSelectorIds(q.id);
+				const columnTypeEl = document.getElementById(ids.columnTypeId);
+				const columnNameEl = document.getElementById(ids.columnNameId);
+				const totalEl = document.getElementById(ids.totalId);
+				if (columnTypeEl) ANSWERS[ids.columnTypeId] = columnTypeEl.value;
+				if (columnNameEl) ANSWERS[ids.columnNameId] = columnNameEl.value;
+				if (totalEl) ANSWERS[q.id] = totalEl.value;
+				if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
+				return;
+			}
+			if (q.type === 'equipment_dropdown') {
+				const selectEl = document.getElementById(q.id);
+				const totalEl = document.getElementById(q.id + '_total');
+				if (selectEl) {
+					const selectedOption = selectEl.selectedOptions && selectEl.selectedOptions[0] ? selectEl.selectedOptions[0] : null;
+					if (selectedOption) {
+						ANSWERS[q.id + '_name'] = selectedOption.value;
+					} else {
+						delete ANSWERS[q.id + '_name'];
+					}
+				}
 				if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
 				return;
 			}
@@ -487,7 +641,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	function restoreCurrentTabAnswers() {
 		const area = QUESTION_AREAS[currentTab];
 		if (!area) return;
-		area.questions.forEach(q => {
+		getQuestionsForCurrentView(area).forEach(q => {
 			if (q.type === 'label') return;
 			if (q.type === 'boolean') {
 				const value = ANSWERS[q.id];
@@ -495,6 +649,30 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				const falseEl = document.getElementById(q.id + '_false');
 				if (trueEl) trueEl.checked = value === 'true';
 				if (falseEl) falseEl.checked = value === 'false';
+				return;
+			}
+			if (q.type === 'equipment_checklist') {
+				const listEl = document.getElementById(q.id + '_equipment_list');
+				const totalEl = document.getElementById(q.id + '_total');
+				if (listEl) {
+					let saved = [];
+					try {
+						saved = ANSWERS[q.id + '_items'] ? JSON.parse(ANSWERS[q.id + '_items']) : [];
+					} catch (e) {
+						saved = [];
+					}
+					listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+						cb.checked = saved.includes(cb.value);
+					});
+				}
+				if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
+				return;
+			}
+			if (q.type === 'equipment_dropdown') {
+				const selectEl = document.getElementById(q.id);
+				const totalEl = document.getElementById(q.id + '_total');
+				if (selectEl && ANSWERS[q.id + '_name'] !== undefined) selectEl.value = ANSWERS[q.id + '_name'];
+				if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
 				return;
 			}
 			if (q.type === 'solvent_calculator') {
@@ -532,6 +710,20 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				renderRecurringList(q.id, 'buffer');
 				if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
 				updateRecurringCostTotal(q.id);
+				return;
+			}
+			if (q.type === 'column_selector') {
+				const ids = getColumnSelectorIds(q.id);
+				const columnTypeEl = document.getElementById(ids.columnTypeId);
+				const columnNameEl = document.getElementById(ids.columnNameId);
+				const totalEl = document.getElementById(ids.totalId);
+				if (columnTypeEl && ANSWERS[ids.columnTypeId] !== undefined) {
+					columnTypeEl.value = ANSWERS[ids.columnTypeId];
+					populateColumnNames(q.id, ANSWERS[ids.columnTypeId], ids);
+				}
+				if (columnNameEl && ANSWERS[ids.columnNameId] !== undefined) columnNameEl.value = ANSWERS[ids.columnNameId];
+				if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
+				updateColumnSelectorTotal(q.id);
 				return;
 			}
 			if (q.type === 'chem_lookup') {
@@ -803,8 +995,16 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		return isNaN(parsedValue) ? NaN : parsedValue;
 	}
 
-	function populateColumnNames(questionId, selectedType) {
-		const ids = getRecurringCostIds(questionId);
+	function getColumnSelectorIds(questionId) {
+		return {
+			columnTypeId: questionId + '_column_type',
+			columnNameId: questionId + '_column_name',
+			totalId: questionId + '_total',
+			wrapperId: questionId + '_column_selector'
+		};
+	}
+
+	function populateColumnNames(questionId, selectedType, ids = getColumnSelectorIds(questionId)) {
 		const nameSelectEl = document.getElementById(ids.columnNameId);
 		if (!nameSelectEl) return;
 
@@ -825,8 +1025,54 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		}
 	}
 
+	function updateColumnSelectorTotal(questionId) {
+		const ids = getColumnSelectorIds(questionId);
+		const columnNameEl = document.getElementById(ids.columnNameId);
+		const columnTypeEl = document.getElementById(ids.columnTypeId);
+		const totalEl = document.getElementById(ids.totalId);
+		const columnCost = getSelectedColumnCost(columnNameEl);
+		const total = isNaN(columnCost) ? '' : columnCost.toFixed(2);
+		if (totalEl) totalEl.value = total;
+		if (total !== '') {
+			ANSWERS[questionId] = total;
+			ANSWERS[ids.totalId] = total;
+		} else {
+			delete ANSWERS[questionId];
+			delete ANSWERS[ids.totalId];
+		}
+		if (columnTypeEl && columnTypeEl.value) ANSWERS[ids.columnTypeId] = columnTypeEl.value;
+		else delete ANSWERS[ids.columnTypeId];
+		const selectedColumnName = columnNameEl && columnNameEl.selectedOptions && columnNameEl.selectedOptions[0]
+			? columnNameEl.selectedOptions[0].value
+			: (columnNameEl ? columnNameEl.value : '');
+		if (selectedColumnName !== '') ANSWERS[ids.columnNameId] = selectedColumnName;
+		else delete ANSWERS[ids.columnNameId];
+		return total;
+	}
+
 	function groupRowsByType(rows, phase = null) {
 		return rows.reduce((groups, row) => {
+
+	function updateEquipmentDropdownTotal(questionId) {
+		const selectEl = document.getElementById(questionId);
+		const totalEl = document.getElementById(questionId + '_total');
+		const selectedOption = selectEl && selectEl.selectedOptions ? selectEl.selectedOptions[0] : null;
+		const priceFromData = selectedOption ? selectedOption.getAttribute('data-price') : null;
+		const selectedName = selectedOption ? selectedOption.value : '';
+		const parsed = priceFromData !== null && priceFromData !== '' ? parseFloat(priceFromData) : NaN;
+		const total = !isNaN(parsed) ? parsed.toFixed(2) : '';
+		if (totalEl) totalEl.value = total;
+		if (total !== '') {
+			ANSWERS[questionId] = total;
+			ANSWERS[questionId + '_total'] = total;
+			ANSWERS[questionId + '_name'] = selectedName;
+		} else {
+			delete ANSWERS[questionId];
+			delete ANSWERS[questionId + '_total'];
+			delete ANSWERS[questionId + '_name'];
+		}
+		return total;
+	}
 			if (phase && String(row.phase || '').toLowerCase() !== String(phase).toLowerCase()) return groups;
 			const group = row.type || 'Other';
 			if (!groups[group]) groups[group] = [];
@@ -876,12 +1122,10 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	}
 
 	function updateRecurringCostTotal(questionId) {
-		const { columnNameId, runId, flowId, totalId } = getRecurringCostIds(questionId);
-		const columnNameEl = document.getElementById(columnNameId);
+		const { runId, flowId, totalId } = getRecurringCostIds(questionId);
 		const runEl = document.getElementById(runId);
 		const flowEl = document.getElementById(flowId);
 		const totalEl = document.getElementById(totalId);
-		const columnCost = getSelectedColumnCost(columnNameEl);
 		const runMinutes = parseFloat(runEl ? runEl.value : '');
 		const flowRate = parseFloat(flowEl ? flowEl.value : '');
 		const mix = getRecurringMix(questionId);
@@ -893,16 +1137,15 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		mix.solvents = solvents;
 		let total = '';
 		const hasAnyEntries = solvents.length > 0 || modifiers.length > 0 || buffers.length > 0;
-		if (!isNaN(columnCost) && !isNaN(runMinutes) && !isNaN(flowRate) && hasAnyEntries) {
+		if (!isNaN(runMinutes) && !isNaN(flowRate) && hasAnyEntries) {
 			const totalVolumeMl = runMinutes * flowRate;
 			const totalVolumeL = totalVolumeMl / 1000;
 			const solventCost = solvents.reduce((sum, entry) => sum + ((totalVolumeMl * (entry.pct / 100)) * entry.price / 1000), 0);
 			const modifierCost = modifiers.reduce((sum, entry) => sum + (totalVolumeL * entry.pct * entry.price), 0);
 			const bufferCost = buffers.reduce((sum, entry) => sum + (totalVolumeL * entry.pct * entry.price), 0);
 			const variableCost = solventCost + modifierCost + bufferCost;
-			total = (columnCost + variableCost).toFixed(2);
+			total = variableCost.toFixed(2);
 			console.groupCollapsed && console.groupCollapsed(`Recurring cost calculation: ${questionId}`);
-			console.log('column cost', columnCost);
 			console.log('run minutes', runMinutes);
 			console.log('flow rate', flowRate);
 			console.log('total mobile phase volume (mL)', totalVolumeMl);
@@ -918,10 +1161,6 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			console.groupEnd && console.groupEnd();
 		}
 		if (totalEl) totalEl.value = total;
-		const ids = getRecurringCostIds(questionId);
-		const selectedColumnName = columnNameEl && columnNameEl.selectedOptions && columnNameEl.selectedOptions[0] ? columnNameEl.selectedOptions[0].value : (columnNameEl ? columnNameEl.value : '');
-		if (selectedColumnName !== '') ANSWERS[ids.columnNameId] = selectedColumnName;
-		else delete ANSWERS[ids.columnNameId];
 		if (!isNaN(runMinutes)) ANSWERS[questionId + '_run'] = String(runMinutes);
 		else delete ANSWERS[questionId + '_run'];
 		if (!isNaN(flowRate)) ANSWERS[questionId + '_flow'] = String(flowRate);
@@ -1186,6 +1425,22 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			delete ANSWERS[q.id + '_total'];
 			RECURRING_MIXES[q.id] = { solvents: [], normalPhaseSolvents: [], reversePhaseSolvents: [], modifiers: [], buffers: [] };
 		}
+		if (q.type === 'equipment_checklist') {
+			delete ANSWERS[q.id + '_items'];
+			delete ANSWERS[q.id + '_total'];
+			delete ANSWERS[q.id];
+		}
+		if (q.type === 'column_selector') {
+			const ids = getColumnSelectorIds(q.id);
+			delete ANSWERS[ids.columnTypeId];
+			delete ANSWERS[ids.columnNameId];
+			delete ANSWERS[ids.totalId];
+		}
+		if (q.type === 'equipment_dropdown') {
+			delete ANSWERS[q.id];
+			delete ANSWERS[q.id + '_name'];
+			delete ANSWERS[q.id + '_total'];
+		}
 		if (q.type === 'chem_lookup') {
 			delete ANSWERS[q.id + '_name'];
 			delete ANSWERS[q.id + '_price'];
@@ -1198,7 +1453,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	function updateConditionalVisibility() {
 		const area = QUESTION_AREAS[currentTab];
 		if (!area) return;
-		area.questions.forEach(q => {
+		getQuestionsForCurrentView(area).forEach(q => {
 			if (!q.show_if_id || !q.show_if_value) return;
 			const wrapper = document.getElementById('question-wrapper-' + q.id);
 			if (!wrapper) return;
@@ -1231,7 +1486,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		const form = document.getElementById('assessment-form');
 		form.innerHTML = '';
 		const area = QUESTION_AREAS[currentTab];
-		   area.questions.forEach(q => {
+		renderFixedCostSubTabs();
+		const questionsToRender = getQuestionsForCurrentView(area);
+		   questionsToRender.forEach(q => {
 			   if (q.type === 'label') {
 				   const labelIconKey = iconKeyFromText(q.id || q.text || 'section');
 				   form.innerHTML += `<div class="form-label-block"><span class="label-icon-slot" data-icon-key="${labelIconKey}" aria-hidden="true"></span><div class="form-label-block-copy">${q.text || ''}</div></div>`;
@@ -1261,6 +1518,56 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 				   input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${unitLabel}</span></div>`;
 			   } else if (q.type === 'text') {
 				   input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
+			   } else if (q.type === 'equipment_dropdown') {
+				   const optionsHtml = INSTRUMENT_OPTIONS.length ? INSTRUMENT_OPTIONS.map((inst, idx) => `
+					   <option value="${String(inst.name).replace(/"/g, '&quot;')}" data-price="${Number(inst.price)}">${inst.name} — ${inst.price} EUR</option>
+				   `).join('') : '';
+				   input = `
+					   <div class="equipment-dropdown-wrap">
+						   <select id="${q.id}" name="${q.id}" class="form-input" required>
+							   <option value="">Select instrument...</option>
+							   ${optionsHtml}
+						   </select>
+						   <div class="chem-lookup-total-section">
+							   <label for="${q.id}_total" class="input-label-small">Selected instrument cost (EUR)</label>
+							   <input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+						   </div>
+					   </div>
+				   `;
+			   } else if (q.type === 'equipment_checklist') {
+				   input = `
+					   <div class="equipment-checklist-wrap">
+						   <div id="${q.id}_equipment_list" class="equipment-checklist-list"></div>
+						   <div id="${q.id}_equipment_empty" class="equipment-empty hidden">No instruments were loaded from instruments.csv.</div>
+						   <div class="chem-lookup-total-section">
+							   <label for="${q.id}_total" class="input-label-small">Total basic equipment cost (EUR)</label>
+							   <input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+						   </div>
+					   </div>
+				   `;
+			   } else if (q.type === 'column_selector') {
+				   const columnTypes = getColumnTypes(COLUMN_OPTIONS);
+				   const ids = getColumnSelectorIds(q.id);
+				   input = `
+					   <div class="column-selector-wrap" id="${ids.wrapperId}">
+						   <div class="recurring-cost-grid">
+							   <div class="recurring-cost-field">
+								   <label id="${q.id}_column_type_label" for="${ids.columnTypeId}" class="input-label-small">Column Type</label>
+								   ${renderSimpleSelect(ids.columnTypeId, columnTypes, 'Select type')}
+							   </div>
+							   <div class="recurring-cost-field">
+								   <label id="${q.id}_column_label" for="${ids.columnNameId}" class="input-label-small">Full column name</label>
+								   <select id="${ids.columnNameId}" name="${ids.columnNameId}" class="form-input" required>
+									   <option value="">Select column name...</option>
+								   </select>
+							   </div>
+						   </div>
+						   <div class="chem-lookup-total-section">
+							   <label for="${ids.totalId}" class="input-label-small">Total fixed column cost (EUR)</label>
+							   <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+						   </div>
+					   </div>
+				   `;
 			} else if (q.type === 'recurring_cost_calculator') {
 				const columnTypes = getColumnTypes(COLUMN_OPTIONS);
 				const normalPhaseGroups = groupRowsByType(SOLVENT_OPTIONS, 'Normal');
@@ -1272,16 +1579,6 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 					<div class="recurring-cost-calc" id="${q.id}_recurring_cost_calc" data-question-id="${q.id}">
 						<div class="recurring-cost-grid">
 							<div class="recurring-cost-field">
-								<label id="${q.id}_column_type_label" for="${ids.columnTypeId}" class="input-label-small">Column Type</label>
-								${renderSimpleSelect(ids.columnTypeId, columnTypes, 'Select type')}
-							</div>
-							<div class="recurring-cost-field">
-								<label id="${q.id}_column_label" for="${ids.columnNameId}" class="input-label-small">Full column name</label>
-								<select id="${ids.columnNameId}" name="${ids.columnNameId}" class="form-input" required>
-									<option value="">Select column name...</option>
-								</select>
-							</div>
-							<div class="recurring-cost-field">
 								<label id="${q.id}_run_label" for="${q.id}_run" class="input-label-small">Total run (min)</label>
 								<input id="${q.id}_run" name="${q.id}_run" type="number" min="0" step="any" placeholder="0" class="form-input">
 							</div>
@@ -1290,6 +1587,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 								<input id="${q.id}_flow" name="${q.id}_flow" type="number" min="0" step="any" placeholder="0" class="form-input">
 							</div>
 						</div>
+						<div class="recurring-column-note">Column cost is selected in Equipment Fixed Costs, Section 2.</div>
 						<div class="recurring-group recurring-group-solvent">
 							<div class="recurring-group-title"><span class="group-icon-slot" data-icon-key="normal-phase" aria-hidden="true"></span><span>Normal phase composition</span></div>
 							<div class="recurring-inline-add">
@@ -1508,6 +1806,58 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		   });
 		   // Restore answers for this tab
 		   restoreCurrentTabAnswers();
+
+		   // Populate equipment checklists from instruments data (if any)
+		   (function populateEquipmentLists() {
+			   const questions = area.questions || [];
+			   questions.forEach((q) => {
+				   if (q.type !== 'equipment_checklist') return;
+				   const listEl = document.getElementById(q.id + '_equipment_list');
+				   const emptyEl = document.getElementById(q.id + '_equipment_empty');
+				   const totalEl = document.getElementById(q.id + '_total');
+				   if (!listEl) return;
+				   if (!INSTRUMENT_OPTIONS.length) {
+					   listEl.innerHTML = '';
+					   if (emptyEl) emptyEl.classList.remove('hidden');
+					   if (totalEl) totalEl.value = '';
+					   return;
+				   }
+				   if (emptyEl) emptyEl.classList.add('hidden');
+				   listEl.innerHTML = INSTRUMENT_OPTIONS.map((inst, idx) => `
+					   <div class="equipment-item">
+						   <label for="${q.id}_item_${idx}">
+							   <input type="checkbox" id="${q.id}_item_${idx}" name="${q.id}_item" data-price="${Number(inst.price)}" value="${inst.name}"> ${inst.name} — ${inst.price} EUR
+						   </label>
+					   </div>
+				   `).join('');
+				   const checkboxes = listEl.querySelectorAll('input[type="checkbox"]');
+				   const updateTotal = () => {
+					   let total = 0;
+					   const selected = [];
+					   checkboxes.forEach(c => { if (c.checked) { total += Number(c.getAttribute('data-price') || 0); selected.push(c.value); } });
+					   if (totalEl) totalEl.value = total || '';
+						ANSWERS[q.id + '_items'] = selected.length ? JSON.stringify(selected) : '';
+							if (selected.length) {
+								ANSWERS[q.id] = String(total);
+								ANSWERS[q.id + '_total'] = total || '';
+							} else {
+								delete ANSWERS[q.id];
+								delete ANSWERS[q.id + '_total'];
+							}
+					   checkFormValidity();
+				   };
+				   checkboxes.forEach(cb => cb.addEventListener('change', updateTotal));
+				   // restore selections if present
+				   if (ANSWERS[q.id]) {
+					   try {
+							const saved = ANSWERS[q.id + '_items'] ? JSON.parse(ANSWERS[q.id + '_items']) : [];
+						   checkboxes.forEach(c => { if (saved.includes(c.value)) c.checked = true; });
+						   updateTotal();
+					   } catch (e) { /* ignore */ }
+				   }
+			   });
+		   })();
+
 		   updateConditionalVisibility();
 	   }
 
@@ -1620,21 +1970,29 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	   document.addEventListener('change', function(e) {
 		   const el = e.target;
 		   if (!el || !el.id) return;
+		   const exactQuestion = findQuestionById(el.id);
+		   if (exactQuestion && exactQuestion.type === 'equipment_dropdown') {
+			   ANSWERS[el.id] = el.value;
+			   updateEquipmentDropdownTotal(el.id);
+			   checkFormValidity();
+			   return;
+		   }
 		   if (el.id.endsWith('_column_type')) {
 			   const qid = el.id.replace(/_column_type$/, '');
 			   ANSWERS[el.id] = el.value;
-			   populateColumnNames(qid, el.value);
-			   updateRecurringCostTotal(qid);
+			   const ids = getColumnSelectorIds(qid);
+			   populateColumnNames(qid, el.value, ids);
+			   updateColumnSelectorTotal(qid);
+			   if (document.getElementById(qid + '_recurring_cost_calc')) updateRecurringCostTotal(qid);
 			   checkFormValidity();
 			   return;
 		   }
 		   if (el.id.endsWith('_column_name')) {
 			   ANSWERS[el.id] = el.value;
 			   const qid = el.id.replace(/_column_name$/, '');
-			   if (document.getElementById(qid + '_recurring_cost_calc')) {
-				   updateRecurringCostTotal(qid);
-				   checkFormValidity();
-			   }
+			   if (document.getElementById(qid + '_column_selector')) updateColumnSelectorTotal(qid);
+			   if (document.getElementById(qid + '_recurring_cost_calc')) updateRecurringCostTotal(qid);
+			   checkFormValidity();
 			   return;
 		   }
 		   if (el.id.includes('_normal_phase_solvent_select') || el.id.includes('_reverse_phase_solvent_select') || el.id.includes('_modifier_select') || el.id.includes('_buffer_select')) {
@@ -1732,27 +2090,42 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 	   });
 
 	function updateSectionTitle() {
+		const area = QUESTION_AREAS[currentTab];
 		const title = document.querySelector('#section-title .section-title-text');
-		if (title) title.textContent = QUESTION_AREAS[currentTab].title;
-		else document.getElementById('section-title').textContent = QUESTION_AREAS[currentTab].title;
+		if (title) title.textContent = area.title;
+		else document.getElementById('section-title').textContent = area.title;
+		const subtitle = document.getElementById('section-subtitle');
+		if (subtitle && isFixedCostsArea(area)) {
+			subtitle.textContent = `${getFixedCostSubTab().title}. Use the sub-tabs to move through the three fixed-cost sections.`;
+		} else if (subtitle) {
+			subtitle.textContent = 'Please answer all required fields in this section.';
+		}
 		updateSectionGuidance();
 	}
 
 	function updateProgress() {
-		const percent = ((currentTab + 1) / QUESTION_AREAS.length) * 100;
+		const area = QUESTION_AREAS[currentTab];
+		const totalViews = getViewCount();
+		const currentView = getCurrentViewIndex();
+		const percent = ((currentView + 1) / totalViews) * 100;
 		document.getElementById('progress-bar').style.width = percent + '%';
-		document.getElementById('progress-label').textContent = `Section ${currentTab + 1} of ${QUESTION_AREAS.length}: ${QUESTION_AREAS[currentTab].title}`;
+		if (isFixedCostsArea(area)) {
+			document.getElementById('progress-label').textContent = `Section ${currentView + 1} of ${totalViews}: ${area.title} - ${getFixedCostSubTab().title}`;
+		} else {
+			document.getElementById('progress-label').textContent = `Section ${currentView + 1} of ${totalViews}: ${area.title}`;
+		}
 	}
 
 	function updateNavButtons() {
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
     const submitBtn = document.getElementById('submit-btn');
+    const isLastView = getCurrentViewIndex() === getViewCount() - 1;
 
-    if (currentTab === 0) prevBtn.classList.add('hidden');
+    if (getCurrentViewIndex() === 0) prevBtn.classList.add('hidden');
     else prevBtn.classList.remove('hidden');
 
-    if (currentTab === QUESTION_AREAS.length - 1) {
+    if (isLastView) {
         nextBtn.classList.add('hidden');
         submitBtn.classList.remove('hidden');
     } else {
@@ -1761,9 +2134,40 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
     }
 }
 
+	function navigateView(direction) {
+		saveCurrentTabAnswers();
+		const area = QUESTION_AREAS[currentTab];
+		if (isFixedCostsArea(area)) {
+			if (direction > 0 && fixedCostsSubTab < FIXED_COST_SUBTABS.length - 1) {
+				fixedCostsSubTab += 1;
+			} else if (direction < 0 && fixedCostsSubTab > 0) {
+				fixedCostsSubTab -= 1;
+			} else {
+				currentTab += direction;
+				if (currentTab < 0) currentTab = 0;
+				if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
+				const nextArea = QUESTION_AREAS[currentTab];
+				if (isFixedCostsArea(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+			}
+		} else {
+			currentTab += direction;
+			if (currentTab < 0) currentTab = 0;
+			if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
+			const nextArea = QUESTION_AREAS[currentTab];
+			if (isFixedCostsArea(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+		}
+		renderTabs();
+		renderQuestions();
+		updateSectionTitle();
+		updateProgress();
+		updateNavButtons();
+		checkFormValidity();
+	}
+
 	function goToTab(idx) {
 		saveCurrentTabAnswers();
 		currentTab = idx;
+		if (isFixedCostsArea(QUESTION_AREAS[currentTab])) fixedCostsSubTab = 0;
 		renderTabs();
 		renderQuestions();
 		updateSectionTitle();
@@ -1826,11 +2230,12 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		const errorMsg = document.getElementById('error-message');
 		try {
 			const cacheBuster = `t=${Date.now()}`;
-			const [questionsResult, solventsResult, columnsResult, buffersResult] = await Promise.allSettled([
+			const [questionsResult, solventsResult, columnsResult, buffersResult, instrumentsResult] = await Promise.allSettled([
 				fetch(`config/questions.csv?${cacheBuster}`, { cache: 'no-store' }),
 				fetch(`config/solvents.csv?${cacheBuster}`, { cache: 'no-store' }),
 				fetch(`config/columns.csv?${cacheBuster}`, { cache: 'no-store' }),
-				fetch(`config/buffers.csv?${cacheBuster}`, { cache: 'no-store' })
+				fetch(`config/buffers.csv?${cacheBuster}`, { cache: 'no-store' }),
+				fetch(`config/instruments.csv?${cacheBuster}`, { cache: 'no-store' })
 			]);
 			const questionsRes = questionsResult.status === 'fulfilled' ? questionsResult.value : null;
 			const solventsRes = solventsResult.status === 'fulfilled' ? solventsResult.value : null;
@@ -1839,16 +2244,29 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 			if (!questionsRes || !questionsRes.ok) throw new Error('Question file not found');
 			if (!solventsRes || !solventsRes.ok) throw new Error('Solvent file not found');
 			if (!buffersRes || !buffersRes.ok) throw new Error('Buffer file not found');
-			const [csvText, solventsText, columnsText, buffersText] = await Promise.all([
+			const [csvText, solventsText, columnsText, buffersText, instrumentsText] = await Promise.all([
 				questionsRes.text(),
 				solventsRes.text(),
 				columnsRes && columnsRes.ok ? columnsRes.text() : FALLBACK_COLUMNS_CSV,
-				buffersRes.text()
+				buffersRes.text(),
+				instrumentsResult && instrumentsResult.status === 'fulfilled' && instrumentsResult.value && instrumentsResult.value.ok ? instrumentsResult.value.text() : ''
 			]);
 			SOLVENT_OPTIONS = parseNamedCsvRows(solventsText);
 			COLUMN_OPTIONS = parseColumnsCsv(columnsText);
 			if (!COLUMN_OPTIONS.length) COLUMN_OPTIONS = parseColumnsCsv(FALLBACK_COLUMNS_CSV);
 			BUFFER_OPTIONS = parseNamedCsvRows(buffersText);
+			// Parse instruments CSV (expected headers: Instrument Type, Average Price (EUR))
+			try {
+				if (instrumentsText && instrumentsText.trim()) {
+					const rows = parseCSV(instrumentsText);
+					INSTRUMENT_OPTIONS = rows.map(r => ({
+						name: r['Instrument Type'] || r['Instrument'] || r['Type'] || r.name || '',
+						price: Number((r['Average Price (EUR)'] || r['Average Price'] || r.price || '').toString().replace(/[^0-9.\-]/g, ''))
+					})).filter(i => i.name && !isNaN(i.price));
+				} else {
+					INSTRUMENT_OPTIONS = [];
+				}
+			} catch (e) { INSTRUMENT_OPTIONS = []; }
 			if (COLUMN_OPTIONS.length) {
 				console.log('Distinct column types:', getColumnTypes(COLUMN_OPTIONS));
 			}
@@ -1943,7 +2361,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 					if (!val || val === '') { allValid = false; break; }
 				} else if (q.type === 'boolean') {
 					if (val !== 'true' && val !== 'false') { allValid = false; break; }
-				} else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator') {
+				} else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist') {
 					if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
 				} else if (q.type === 'text') {
 					if (!val || !val.trim()) { allValid = false; break; }
@@ -1968,10 +2386,10 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 
 	// Navigation button logic
 	document.getElementById('prev-btn').addEventListener('click', () => {
-		if (currentTab > 0) goToTab(currentTab - 1);
+		navigateView(-1);
 	});
 	document.getElementById('next-btn').addEventListener('click', () => {
-		if (currentTab < QUESTION_AREAS.length - 1) goToTab(currentTab + 1);
+		navigateView(1);
 	});
 
 	// Handle form submission
@@ -1990,7 +2408,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 					if (!val || val === '') { allValid = false; break; }
 				} else if (q.type === 'boolean') {
 					if (val !== 'true' && val !== 'false') { allValid = false; break; }
-				} else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator') {
+				} else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist') {
 					if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
 				} else if (q.type === 'text') {
 					if (!val || !val.trim()) { allValid = false; break; }
@@ -2006,6 +2424,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		document.getElementById('results-section').classList.remove('hidden');
 		// Calculate and show scores
 		const scores = calculateScores(QUESTION_AREAS, ANSWERS, ANALYSIS_MODE);
+		renderEquipmentPriceSummary();
 		renderResultsGraphic(scores);
 		document.getElementById('debug-scores').textContent = 'Scores: ' + JSON.stringify(scores);
 	});
@@ -2015,6 +2434,56 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 		   for (const area of QUESTION_AREAS) {
 			   for (const q of area.questions) {
 				   if (q.type === 'label') continue;
+				   if (q.type === 'equipment_dropdown') {
+					   const selectEl = document.getElementById(q.id);
+					   const totalEl = document.getElementById(q.id + '_total');
+					   if (selectEl) {
+						   const options = Array.from(selectEl.querySelectorAll('option')).filter(opt => opt.value);
+						   const chosen = options.length ? options[Math.floor(Math.random() * options.length)] : null;
+						   if (chosen) {
+							   selectEl.value = chosen.value;
+							   ANSWERS[q.id + '_name'] = chosen.value;
+							   ANSWERS[q.id] = String(Number(chosen.getAttribute('data-price') || 0));
+							   ANSWERS[q.id + '_total'] = ANSWERS[q.id];
+							   if (totalEl) totalEl.value = ANSWERS[q.id];
+						   }
+					   }
+					   continue;
+				   }
+				   if (q.type === 'equipment_checklist') {
+					   const listEl = document.getElementById(q.id + '_equipment_list');
+					   const totalEl = document.getElementById(q.id + '_total');
+					   if (listEl) {
+						   const checkboxes = Array.from(listEl.querySelectorAll('input[type="checkbox"]'));
+						   const selected = checkboxes.slice(0, Math.min(3, checkboxes.length));
+						   checkboxes.forEach(cb => { cb.checked = selected.includes(cb); });
+						   const selectedNames = [];
+						   let total = 0;
+						   selected.forEach(cb => {
+							   selectedNames.push(cb.value);
+							   total += Number(cb.getAttribute('data-price') || 0);
+						   });
+						   ANSWERS[q.id + '_items'] = selectedNames.length ? JSON.stringify(selectedNames) : '';
+						   ANSWERS[q.id] = total ? String(total) : '';
+						   ANSWERS[q.id + '_total'] = total || '';
+						   if (totalEl) totalEl.value = total || '';
+					   }
+					   continue;
+				   }
+					   if (q.type === 'column_selector') {
+						   const ids = getColumnSelectorIds(q.id);
+						   const columnTypes = getColumnTypes(COLUMN_OPTIONS);
+						   const selectedType = columnTypes.length > 0 ? columnTypes[Math.floor(Math.random() * columnTypes.length)] : 'C18';
+						   const columnsOfType = getColumnsByType(COLUMN_OPTIONS, selectedType);
+						   const selectedColumn = columnsOfType.length > 0 ? columnsOfType[Math.floor(Math.random() * columnsOfType.length)] : { price: 400 };
+						   const typeEl = document.getElementById(ids.columnTypeId);
+						   const nameEl = document.getElementById(ids.columnNameId);
+						   if (typeEl) typeEl.value = selectedType;
+						   populateColumnNames(q.id, selectedType, ids);
+						   if (nameEl) nameEl.value = selectedColumn.fullName || selectedColumn.name || String(selectedColumn.price || '');
+						   updateColumnSelectorTotal(q.id);
+						   continue;
+					   }
 				   let val = '';
 				   // Always parse params if it's a string
 				   let params = q.params;
@@ -2045,11 +2514,6 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						   const ids = getRecurringCostIds(q.id);
 						   const solventRows = SOLVENT_OPTIONS.length ? SOLVENT_OPTIONS : [{ name: 'Water', price: 0.01, phase: 'Normal' }, { name: 'Methanol', price: 0.08, phase: 'Normal' }];
 						   const bufferRows = BUFFER_OPTIONS.length ? BUFFER_OPTIONS : [{ name: 'Formic acid', price: 0.02 }];
-						   const columnTypes = getColumnTypes(COLUMN_OPTIONS);
-						   const selectedType = columnTypes.length > 0 ? columnTypes[Math.floor(Math.random() * columnTypes.length)] : 'C18';
-						   const columnsOfType = getColumnsByType(COLUMN_OPTIONS, selectedType);
-						   const selectedColumn = columnsOfType.length > 0 ? columnsOfType[Math.floor(Math.random() * columnsOfType.length)] : { price: 400 };
-						   const columnPrice = selectedColumn.price;
 						   const run = (Math.random() * 30 + 5).toFixed(1);
 						   const flow = (Math.random() * 3 + 0.5).toFixed(2);
 						   const water = solventRows.find(s => s.name && s.name.toLowerCase().includes('water')) || solventRows[0];
@@ -2064,8 +2528,6 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						   const bufferEntries = [
 							   { name: buffer.name, price: Number(buffer.price), pct: 10 }
 						   ];
-						   ANSWERS[ids.columnTypeId] = selectedType;
-						   ANSWERS[ids.columnNameId] = selectedColumn.fullName || selectedColumn.name || String(columnPrice);
 						   ANSWERS[q.id + '_run'] = run;
 						   ANSWERS[q.id + '_flow'] = flow;
 						   ANSWERS[q.id + '_normal_phase_solvent_entries'] = JSON.stringify(normalPhaseEntries);
@@ -2076,7 +2538,7 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						   const solventSubtotal = solventEntries.reduce((sum, item) => sum + (totalVolume * (item.pct / 100) * item.price), 0);
 						   const waterVolume = totalVolume * 0.6;
 						   const bufferSubtotal = bufferEntries.reduce((sum, item) => sum + (waterVolume * (item.pct / 100) * item.price), 0);
-						   val = (Number(columnPrice) + solventSubtotal + bufferSubtotal).toFixed(2);
+						   val = (solventSubtotal + bufferSubtotal).toFixed(2);
 				   } else if (q.type === 'boolean') {
 					   if (q.method === 'lookup' && params && typeof params === 'object') {
 						   const keys = Object.keys(params).filter(k => k === 'true' || k === 'false');
@@ -2095,13 +2557,9 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 					   if (falseEl) falseEl.checked = val === 'false';
 					   } else if (q.type === 'recurring_cost_calculator') {
 						   const ids = getRecurringCostIds(q.id);
-						   const columnTypeEl = document.getElementById(ids.columnTypeId);
-						   const columnNameEl = document.getElementById(ids.columnNameId);
 						   const runEl = document.getElementById(q.id + '_run');
 						   const flowEl = document.getElementById(q.id + '_flow');
 						   const totalEl = document.getElementById(q.id + '_total');
-						   if (columnTypeEl) columnTypeEl.value = ANSWERS[ids.columnTypeId];
-						   if (columnNameEl) columnNameEl.value = ANSWERS[ids.columnNameId];
 						   if (runEl) runEl.value = ANSWERS[q.id + '_run'];
 						   if (flowEl) flowEl.value = ANSWERS[q.id + '_flow'];
 						   if (totalEl) totalEl.value = ANSWERS[q.id];
@@ -2110,9 +2568,6 @@ Polar-embedded C18,150 mm,2.1 mm,1000 €,"Polar-embedded C18, Atlantis dC18, Wa
 						   mix.reversePhaseSolvents = parseRecurringEntries(ANSWERS[q.id + '_reverse_phase_solvent_entries']);
 						   mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
 						   mix.solvents = [...mix.normalPhaseSolvents, ...mix.reversePhaseSolvents];
-						   if (columnTypeEl && ANSWERS[ids.columnTypeId]) {
-							   populateColumnNames(q.id, ANSWERS[ids.columnTypeId]);
-						   }
 						   renderRecurringList(q.id, 'normal_phase_solvent');
 						   renderRecurringList(q.id, 'reverse_phase_solvent');
 						   renderRecurringList(q.id, 'buffer');

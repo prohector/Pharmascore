@@ -1,0 +1,30 @@
+Instrument Type,Average Price (EUR)
+HPLC-UV/Vis Detector,18000
+HPLC-Fluorescence Detector (FLD),22000
+HPLC-PDA (Photodiode Array Detector),28000
+HPLC-RID (Refractive Index Detector),17000
+HPLC-ELSD,32000
+HPLC-CAD,35000
+UHPLC System (no detector),45000
+Nano-HPLC System,120000
+GC-FID (Flame Ionization Detector),18000
+GC-ECD (Electron Capture Detector),20000
+GC-NPD (Nitrogen-Phosphorus Detector),22000
+GC-TCD (Thermal Conductivity Detector),16000
+GC Autosampler (liquid),12000
+Headspace Autosampler (HS-GC),28000
+Thermal Desorption Unit (TD-GC),25000
+Pyrolyzer for GC (Py-GC),30000
+Single Quadrupole MS (Q),75000
+Triple Quadrupole MS/MS (QqQ),180000
+Quadrupole Time-of-Flight (QTOF),350000
+Time-of-Flight (TOF),250000
+Orbitrap High-Resolution MS,450000
+Ion Trap MS,120000
+Hybrid Orbitrap-QqQ (Tribrid),650000
+GC-MS (Single Quadrupole),70000
+GC-MS/MS (Triple Quadrupole),160000
+GC-TOF,250000
+MALDI-TOF MS,300000
+MALDI-TOF/TOF MS/MS,450000
+MALDI-Orbitrap Hybrid,600000

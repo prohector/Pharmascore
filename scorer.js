@@ -26,7 +26,7 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 				continue;
 			}
 			const val = ANSWERS[q.id];
-			if (q.method === 'threshold' && (q.type === 'number' || q.type === 'chem_lookup')) {
+			if (q.method === 'threshold' && (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist')) {
 				if (!params.ranges || !Array.isArray(params.ranges)) {
 					console.warn('Missing or invalid ranges for threshold question', q.id);
 					continue;
