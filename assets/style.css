@@ -59,6 +59,7 @@ header p {
 }
 
 main {
+	position: relative;
 	width: 100%;
 	max-width: 920px;
 	background-color: #ffffff;
@@ -98,18 +99,17 @@ main.hidden {
 }
 
 .section-guidance {
-	position: fixed;
-	left: 20px;
-	top: 120px;
-	width: min(320px, calc(100vw - 40px));
+	position: absolute;
+	top: 12px;
+	left: 128px;
+	width: min(320px, calc(100vw - 24px));
 	max-height: calc(100vh - 140px);
 	overflow: auto;
 	background: #f8fafb;
 	border: 1px solid #d7e3ee;
 	border-left: 4px solid #2d5a7b;
 	border-radius: 10px;
-	padding: 16px 14px;
-	box-shadow: 0 12px 30px rgba(26, 58, 82, 0.16);
+	box-shadow: 0 16px 30px rgba(26, 58, 82, 0.12);
 	z-index: 30;
 }
 
@@ -168,7 +168,7 @@ main.hidden {
 	width: 1rem;
 	height: 1rem;
 	background-color: transparent;
-	background-image: var(--icon-url);
+	background-image: none;
 	background-repeat: no-repeat;
 	background-position: center;
 	background-size: contain;
@@ -197,7 +197,7 @@ main.hidden {
 	display: none;
 }
 
-.fixed-cost-subtab-btn {
+.fixed-cost-subtab {
 	flex: 1 1 180px;
 	min-width: 0;
 	padding: 10px 12px;
@@ -211,16 +211,120 @@ main.hidden {
 	transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
 
-.fixed-cost-subtab-btn:hover {
+.fixed-cost-subtab:hover {
 	background: #f3f7fb;
 	border-color: #9eb6c8;
 }
 
-.fixed-cost-subtab-btn-active {
+.fixed-cost-subtab.active {
 	background: linear-gradient(135deg, #1a3a52 0%, #2d5a7b 100%);
 	color: #ffffff;
 	border-color: #2d5a7b;
 	box-shadow: 0 8px 18px rgba(26, 58, 82, 0.12);
+}
+
+.recurring-run-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 12px;
+	margin-top: 16px;
+}
+
+.recurring-mode-toggle {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	margin: 14px 0 8px;
+	padding: 10px 12px;
+	background: #f7f9fb;
+	border: 1px solid #dfe7ee;
+	border-radius: 8px;
+}
+
+.toggle-label {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: #526d83;
+}
+
+.toggle-option {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 999px;
+	background: #ffffff;
+	border: 1px solid #d0dce7;
+	font-size: 12px;
+	color: #35526a;
+}
+
+.recurring-cost-message {
+	margin: 0 0 12px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.recurring-cost-message.is-error {
+	background: #fff1f2;
+	border: 1px solid #f5b7c6;
+	color: #8a1f39;
+}
+
+.recurring-cost-message.is-success {
+	background: #edfdf3;
+	border: 1px solid #9adcae;
+	color: #126b3b;
+}
+
+.recurring-gradient-table-wrap {
+	margin-top: 18px;
+	padding: 12px;
+	border: 1px solid #dfe7ee;
+	border-radius: 10px;
+	background: #f8fbff;
+}
+
+.recurring-gradient-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 8px;
+	font-size: 12px;
+}
+
+.recurring-gradient-table th,
+.recurring-gradient-table td {
+	border: 1px solid #dfe7ee;
+	padding: 8px 6px;
+	text-align: center;
+}
+
+.recurring-gradient-table input {
+	width: 100%;
+	padding: 6px 8px;
+	border: 1px solid #d3dfe8;
+	border-radius: 6px;
+	background: #ffffff;
+}
+
+.recurring-gradient-table input[readonly] {
+	background: #eef3f7;
+	color: #4a6076;
+}
+
+.recurring-buffer-warning {
+	margin-top: 10px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: #fff7ed;
+	border: 1px solid #fdba74;
+	color: #9a2c00;
+	font-size: 12px;
 }
 
 /* ===========================
@@ -262,7 +366,12 @@ main.hidden {
 .analysis-gate {
 	width: 100%;
 	max-width: 920px;
-	margin: 0 0 24px 0;
+	min-height: calc(100vh - 180px);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin: 0 auto 24px auto;
 	padding: 28px 24px;
 	border-radius: 16px;
 	background: linear-gradient(135deg, #ffffff 0%, #f6f9fc 100%);
@@ -470,8 +579,18 @@ nav {
 #assessment-form {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
-	gap: 32px;
+	align-items: stretch;
+	gap: 18px;
+	width: 100%;
+	max-width: 46rem;
+	margin: 0 auto;
+}
+
+.question-wrapper {
+	width: 100%;
+	max-width: 46rem;
+	margin: 0 auto;
+	display: flex;
 }
 
 .form-label-block {
@@ -480,6 +599,7 @@ nav {
 	gap: 12px;
 	max-width: 46rem;
 	width: 100%;
+	margin: 0 auto;
 	padding: 14px 16px;
 	border-left: 4px solid #2d5a7b;
 	background-color: #f8fafb;
@@ -508,15 +628,31 @@ nav {
 }
 
 .form-question {
-	max-width: 46rem;
 	width: 100%;
-	margin-bottom: 0px;
 	display: grid;
-	gap: 10px;
+	gap: 12px;
+	padding: 18px 18px 16px;
+	background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
+	border: 1px solid #dfeaf3;
+	border-left: 4px solid #2d5a7b;
+	border-radius: 12px;
+	box-shadow: 0 6px 18px rgba(26, 58, 82, 0.04);
+	align-items: stretch;
+	margin: 0 auto;
+}
+
+.question-label {
+	display: block;
+	font-size: 15px;
+	font-weight: 700;
+	line-height: 1.45;
+	color: #1a3a52;
+	letter-spacing: -0.15px;
 }
 
 .boolean-group {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 12px;
 	margin-top: 6px;
 }
@@ -524,6 +660,9 @@ nav {
 .boolean-option {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
+	flex: 1 1 180px;
+	min-width: 0;
 	gap: 8px;
 	padding: 10px 14px;
 	border: 1.5px solid #d4dce5;
@@ -559,7 +698,9 @@ nav {
 
 .form-input {
 	display: block;
-	width: min(100%, 34rem);
+	width: 100%;
+	max-width: 100%;
+	min-height: 44px;
 	padding: 11px 14px;
 	border: 1.5px solid #d4dce5;
 	border-radius: 7px;
@@ -568,7 +709,7 @@ nav {
 	font-size: 15px;
 	box-shadow: 0 2px 4px rgba(26, 58, 82, 0.04);
 	transition: border-color 0.3s, box-shadow 0.3s, background-color 0.2s;
-	margin-top: 6px;
+	margin-top: 0;
 	font-weight: 400;
 }
 
@@ -640,11 +781,12 @@ select.form-input:disabled {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	width: 100%;
 }
 
 .number-input-wrapper .form-input {
 	flex: 1;
-	margin-top: 4px;
+	margin-top: 0;
 }
 
 .unit-label {
@@ -665,7 +807,7 @@ select.form-input:disabled {
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 12px;
-	margin-top: 6px;
+	margin-top: 0;
 }
 
 .chem-lookup-name-wrapper {
@@ -742,11 +884,11 @@ select.form-input:disabled {
 .chem-lookup-price-section {
 	max-width: 46rem;
 	width: 100%;
-	margin-top: 16px;
+	margin-top: 0;
 	display: grid;
 	grid-template-columns: 2fr 1fr;
 	gap: 16px;
-	align-items: flex-start;
+	align-items: end;
 }
 
 .chem-lookup-price-wrapper {
@@ -827,7 +969,7 @@ select.form-input:disabled {
 .chem-lookup-total-section {
 	max-width: 46rem;
 	width: 100%;
-	margin-top: 16px;
+	margin-top: 0;
 }
 
 .chem-lookup-total-section .input-label-small {
@@ -1104,6 +1246,74 @@ select.form-input:disabled {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
+	padding: 4px 0 0;
+}
+
+.recurring-cost-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 12px;
+	align-items: end;
+}
+
+.recurring-cost-field {
+	display: grid;
+	gap: 6px;
+}
+
+.recurring-cost-action {
+	display: flex;
+	align-items: end;
+	justify-content: flex-start;
+}
+
+.recurring-cost-list-block {
+	display: grid;
+	gap: 8px;
+	padding: 12px 14px;
+	background: #ffffff;
+	border: 1px solid #dfeaf3;
+	border-radius: 10px;
+}
+
+.recurring-cost-list-block h4 {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: #5a6f82;
+}
+
+.recurring-cost-entry {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: #f8fafc;
+	border: 1px solid #e6edf5;
+	font-size: 13px;
+	color: #1a3a52;
+}
+
+.recurring-remove-btn {
+	padding: 6px 10px;
+	font-size: 11px;
+	border-radius: 6px;
+	background: #fff1f2;
+	color: #be123c;
+	border: 1px solid #fecdd3;
+	box-shadow: none;
+}
+
+.recurring-cost-empty {
+	padding: 8px 10px;
+	border-radius: 8px;
+	font-size: 12px;
+	color: #5a6f82;
+	background: #f8fafb;
+	border: 1px dashed #d4dce5;
 }
 
 /* ===========================
@@ -1402,6 +1612,18 @@ button[type="button"]:disabled {
    =========================== */
 
 @media (max-width: 768px) {
+	main {
+		padding-top: 72px;
+	}
+
+	.section-guidance {
+		position: absolute;
+		left: 0;
+		top: 52px;
+		width: min(100%, 320px);
+		max-width: 100%;
+	}
+
 	body {
 		padding: 8px;
 	}

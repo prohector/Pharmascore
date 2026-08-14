@@ -1,30 +1,75 @@
-Instrument Type,Average Price (EUR)
-HPLC-UV/Vis Detector,18000
-HPLC-Fluorescence Detector (FLD),22000
-HPLC-PDA (Photodiode Array Detector),28000
-HPLC-RID (Refractive Index Detector),17000
-HPLC-ELSD,32000
-HPLC-CAD,35000
-UHPLC System (no detector),45000
-Nano-HPLC System,120000
-GC-FID (Flame Ionization Detector),18000
-GC-ECD (Electron Capture Detector),20000
-GC-NPD (Nitrogen-Phosphorus Detector),22000
-GC-TCD (Thermal Conductivity Detector),16000
-GC Autosampler (liquid),12000
-Headspace Autosampler (HS-GC),28000
-Thermal Desorption Unit (TD-GC),25000
-Pyrolyzer for GC (Py-GC),30000
-Single Quadrupole MS (Q),75000
-Triple Quadrupole MS/MS (QqQ),180000
-Quadrupole Time-of-Flight (QTOF),350000
-Time-of-Flight (TOF),250000
-Orbitrap High-Resolution MS,450000
-Ion Trap MS,120000
-Hybrid Orbitrap-QqQ (Tribrid),650000
-GC-MS (Single Quadrupole),70000
-GC-MS/MS (Triple Quadrupole),160000
-GC-TOF,250000
-MALDI-TOF MS,300000
-MALDI-TOF/TOF MS/MS,450000
-MALDI-Orbitrap Hybrid,600000
+Type,Instrument,Average Price (EUR)
+HPLC,Charged Aerosol Detector (CAD),75000
+HPLC,Conductivity Detector,54000
+HPLC,Electrochemical Detector (ECD),60000
+HPLC,Evaporative Light Scattering Detector (ELSD),72000
+HPLC,Fluorescence Detector (FLD),62000
+HPLC,MALDI Orbitrap Hybrid,640000
+HPLC,MALDI TOF MS,340000
+HPLC,MALDI TOF/TOF MS/MS,490000
+HPLC,Mass Spectrometer – Hybrid Orbitrap (Tribrid),690000
+HPLC,Mass Spectrometer – Ion Trap,160000
+HPLC,Mass Spectrometer – Orbitrap,490000
+HPLC,Mass Spectrometer – Quadrupole TOF (QTOF),390000
+HPLC,Mass Spectrometer – Single Quadrupole (Q),115000
+HPLC,Mass Spectrometer – Time of Flight (TOF),290000
+HPLC,Mass Spectrometer – Triple Quadrupole (QqQ),220000
+HPLC,Photodiode Array Detector (PDA),68000
+HPLC,Refractive Index Detector (RID),57000
+HPLC,UV/Vis Detector,58000
+UPLC,Charged Aerosol Detector (CAD),95000
+UPLC,Conductivity Detector,74000
+UPLC,Electrochemical Detector (ECD),80000
+UPLC,Evaporative Light Scattering Detector (ELSD),92000
+UPLC,Fluorescence Detector (FLD),82000
+UPLC,MALDI Orbitrap Hybrid,660000
+UPLC,MALDI TOF MS,360000
+UPLC,MALDI TOF/TOF MS/MS,510000
+UPLC,Mass Spectrometer – Hybrid Orbitrap (Tribrid),710000
+UPLC,Mass Spectrometer – Ion Trap,180000
+UPLC,Mass Spectrometer – Orbitrap,510000
+UPLC,Mass Spectrometer – Quadrupole TOF (QTOF),410000
+UPLC,Mass Spectrometer – Single Quadrupole (Q),135000
+UPLC,Mass Spectrometer – Time of Flight (TOF),310000
+UPLC,Mass Spectrometer – Triple Quadrupole (QqQ),240000
+UPLC,Photodiode Array Detector (PDA),88000
+UPLC,Refractive Index Detector (RID),77000
+UPLC,UV/Vis Detector,78000
+GC,Flame Ionization Detector (FID),53000
+GC,Electron Capture Detector (ECD),55000
+GC,NitrogenPhosphorus Detector (NPD),57000
+GC,Thermal Conductivity Detector (TCD),51000
+GC,Pulsed Flame Photometric Detector (PFPD),65000
+GC,Flame Photometric Detector (FPD),60000
+GC,Mass Spectrometer – Single Quadrupole (GCMS),105000
+GC,Mass Spectrometer – Triple Quadrupole (GCMS/MS),195000
+GC,TimeofFlight (GCTOF),285000
+GC,QuadrupoleTimeofFlight (GCQTOF),385000
+GC,HighResolution TOF (GCHRTOF),335000
+GC,GC Headspace Autosampler (HSGC),63000
+GC,Thermal Desorption Unit (TDGC),60000
+GC,Pyrolyzer for GC (PyGC),65000
+Spectrometric,CEMS (Capillary ElectrophoresisMS),250000
+Spectrometric,Fluorescence Spectrophotometer,25000
+Spectrometric,Flow Cytometer (Basic),120000
+Spectrometric,Flow Cytometer (HighEnd),250000
+Spectrometric,FTIR Spectrometer,35000
+Spectrometric,HighResolution TOF (Standalone),280000
+Spectrometric,ICPMS (Single Quadrupole),180000
+Spectrometric,ICPMS/MS (Triple Quadrupole),260000
+Spectrometric,ICPOES,90000
+Spectrometric,Ion MobilityMS (IMSQTOF),380000
+Spectrometric,MALDIOrbitrap Hybrid,600000
+Spectrometric,MALDITOF MS,300000
+Spectrometric,MALDITOF/TOF MS/MS,450000
+Spectrometric,Metabolomics QTOF (Standalone),350000
+Spectrometric,NMR 400 MHz,500000
+Spectrometric,NMR 500 MHz,750000
+Spectrometric,NMR 600 MHz (Cryoprobe),1200000
+Spectrometric,Particle Size Analyzer (DLS),45000
+Spectrometric,Proteomics Orbitrap Eclipse (Standalone),900000
+Spectrometric,Raman Spectrometer,55000
+Spectrometric,TOC Analyzer (Total Organic Carbon),30000
+Spectrometric,UVVis Spectrophotometer,12000
+Spectrometric,XRD (XRay Diffraction),200000
+Spectrometric,XRF (XRay Fluorescence),120000
