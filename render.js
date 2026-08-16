@@ -3,12 +3,20 @@
     return !!area && area.title === 'Equipment Fixed Costs';
   }
 
+  function isAnalyticalPerformanceArea(area) {
+    return !!area && area.title === 'Analytical Performance';
+  }
+
   function isAnalyticalConsumablesArea(area) {
     return !!area && area.title === 'Analytical Consumables';
   }
 
   function getFixedCostSubTab() {
     return FIXED_COST_SUBTABS[fixedCostsSubTab] || FIXED_COST_SUBTABS[0];
+  }
+
+  function getAnalyticalPerformanceSubTab() {
+    return ANALYTICAL_PERFORMANCE_SUBTABS[analyticalPerformanceSubTab] || ANALYTICAL_PERFORMANCE_SUBTABS[0];
   }
 
   function getAnalyticalConsumablesSubTab() {
@@ -19,6 +27,10 @@
     if (!area) return [];
     if (isFixedCostsArea(area)) {
       const selectedIds = new Set((getFixedCostSubTab().questionIds || []));
+      return area.questions.filter(q => selectedIds.has(q.id));
+    }
+    if (isAnalyticalPerformanceArea(area)) {
+      const selectedIds = new Set((getAnalyticalPerformanceSubTab().questionIds || []));
       return area.questions.filter(q => selectedIds.has(q.id));
     }
     if (isAnalyticalConsumablesArea(area)) {
@@ -58,6 +70,8 @@
     if (subtitleEl) {
       if (isFixedCostsArea(area)) {
         subtitleEl.textContent = `${getFixedCostSubTab().title}. ${guidance.summary}`;
+      } else if (isAnalyticalPerformanceArea(area)) {
+        subtitleEl.textContent = `${getAnalyticalPerformanceSubTab().title}. ${guidance.summary}`;
       } else if (isAnalyticalConsumablesArea(area)) {
         subtitleEl.textContent = `${getAnalyticalConsumablesSubTab().title}. ${guidance.summary}`;
       } else {
@@ -92,6 +106,40 @@
           button.addEventListener('click', () => {
             if (typeof saveCurrentTabAnswers === 'function') saveCurrentTabAnswers();
             fixedCostsSubTab = Number(button.dataset.subtabIndex || 0);
+            renderFixedCostSubTabs();
+            renderTabs();
+            renderQuestions();
+            if (typeof restoreCurrentTabAnswers === 'function') restoreCurrentTabAnswers();
+            updateSectionTitle();
+            updateProgress();
+            updateNavButtons();
+            updateSectionGuidance();
+            checkFormValidity();
+          });
+        });
+      }
+    }
+
+    const analyticalPerformanceContainer = document.getElementById('analytical-performance-subtabs');
+    if (analyticalPerformanceContainer) {
+      if (!isAnalyticalPerformanceArea(area)) {
+        analyticalPerformanceContainer.classList.add('hidden');
+        analyticalPerformanceContainer.innerHTML = '';
+      } else {
+        analyticalPerformanceContainer.innerHTML = ANALYTICAL_PERFORMANCE_SUBTABS.map((tab, idx) => `
+          <button
+            type="button"
+            class="analytical-performance-subtab ${idx === analyticalPerformanceSubTab ? 'active' : ''}"
+            data-analytical-performance-subtab-index="${idx}"
+          >
+            ${tab.title}
+          </button>
+        `).join('');
+        analyticalPerformanceContainer.classList.remove('hidden');
+        analyticalPerformanceContainer.querySelectorAll('.analytical-performance-subtab').forEach(button => {
+          button.addEventListener('click', () => {
+            if (typeof saveCurrentTabAnswers === 'function') saveCurrentTabAnswers();
+            analyticalPerformanceSubTab = Number(button.dataset.analyticalPerformanceSubtabIndex || 0);
             renderFixedCostSubTabs();
             renderTabs();
             renderQuestions();
@@ -212,12 +260,14 @@
 
   function getAreaSubTabCount(area) {
     if (isFixedCostsArea(area)) return FIXED_COST_SUBTABS.length;
+    if (isAnalyticalPerformanceArea(area)) return ANALYTICAL_PERFORMANCE_SUBTABS.length;
     if (isAnalyticalConsumablesArea(area)) return ANALYTICAL_CONSUMABLES_SUBTABS.length;
     return 1;
   }
 
   function getAreaSubTabIndex(area) {
     if (isFixedCostsArea(area)) return fixedCostsSubTab;
+    if (isAnalyticalPerformanceArea(area)) return analyticalPerformanceSubTab;
     if (isAnalyticalConsumablesArea(area)) return analyticalConsumablesSubTab;
     return 0;
   }
@@ -835,6 +885,21 @@
       if (q.type === 'dropdown') {
         const opts = typeof q.options === 'string' ? q.options.split(';') : q.options;
         input = `<select id="${q.id}" name="${q.id}" class="form-input" required><option value="">Select...</option>${opts.map(opt => `<option value="${opt}">${opt}</option>`).join('')}</select>`;
+      } else if (q.type === 'csv_dropdown') {
+        const params = typeof q.params === 'string' ? (() => { try { return JSON.parse(q.params); } catch { return {}; } })() : (q.params || {});
+        const sourceKey = params.source || 'SAMPLE_ANALYSIS_RESULTS_OPTIONS';
+        const sourceItems = Array.isArray(window[sourceKey]) ? window[sourceKey] : [];
+        const valueField = params.valueField || 'value';
+        const labelField = params.labelField || 'label';
+        const options = sourceItems.map(item => {
+          const sampleName = item && (item.sample !== undefined ? item.sample : (item.matrix || item.substrate || item.name || ''));
+          const difficulty = item && (item.difficulty !== undefined && item.difficulty !== null ? item.difficulty : (item.score || item.value || ''));
+          const rawValue = item && (item[valueField] !== undefined && item[valueField] !== null ? item[valueField] : item.value);
+          const labelFromData = item && (item[labelField] !== undefined && item[labelField] !== null ? item[labelField] : `${sampleName}${difficulty !== '' && difficulty !== undefined && difficulty !== null ? ` ${difficulty}` : ''}`);
+          const label = labelFromData || `${sampleName}${difficulty !== '' && difficulty !== undefined && difficulty !== null ? ` ${difficulty}` : ''}`;
+          return { value: String(rawValue ?? difficulty ?? sampleName), label: String(label) };
+        }).filter(item => item.value !== 'undefined' && item.label !== 'undefined' && item.value !== '' && item.label !== '');
+        input = `<select id="${q.id}" name="${q.id}" class="form-input" required><option value="">Select...</option>${options.map(opt => `<option value="${String(opt.value)}">${String(opt.label)}</option>`).join('')}</select>`;
       } else if (q.type === 'boolean') {
         input = `
           <div class="boolean-group" role="radiogroup" aria-labelledby="${q.id}_label">

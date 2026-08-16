@@ -1,10 +1,113 @@
 category,name,price,unit
-Solvent used,Acetonitrile (LC-MS grade),0.12,mL
-Solvent used,Methanol (LC-MS grade),0.08,mL
-Solvent used,Water (ultrapure),0.01,mL
-Reagent used,Formic acid,0.20,g
-Reagent used,Ammonium acetate,0.06,g
-Reagent used,TFA,0.25,g
-Sample prep materials,SPE cartridge (C18),1.80,pcs
-Sample prep materials,Syringe filter 0.22 um,0.45,pcs
-Sample prep materials,Centrifuge tube 15 mL,0.18,pcs
+Solvent used,Acetone,0.03,mL
+Solvent used,Acetonitrile (LCMS grade),0.12,mL
+Solvent used,Benzene,0.05,mL
+Solvent used,Butanol (nbutanol),0.04,mL
+Solvent used,Chloroform,0.05,mL
+Solvent used,Cyclohexane,0.04,mL
+Solvent used,Dichloromethane (DCM),0.05,mL
+Solvent used,Diethyl ether,0.04,mL
+Solvent used,Dimethylformamide (DMF),0.06,mL
+Solvent used,Dimethyl sulfoxide (DMSO),0.07,mL
+Solvent used,Ethanol (absolute),0.03,mL
+Solvent used,Ethyl acetate,0.04,mL
+Solvent used,Formic acid (LCMS grade),0.20,mL
+Solvent used,Heptane,0.04,mL
+Solvent used,Hexane,0.04,mL
+Solvent used,Isobutanol,0.04,mL
+Solvent used,Isooctane,0.05,mL
+Solvent used,Isopropanol (IPA),0.03,mL
+Solvent used,Methanol (LCMS grade),0.08,mL
+Solvent used,Methyl tertbutyl ether (MTBE),0.05,mL
+Solvent used,"N,NDimethylacetamide (DMA)",0.06,mL
+Solvent used,nPentane,0.04,mL
+Solvent used,Petroleum ether,0.03,mL
+Solvent used,Propanol (1propanol),0.03,mL
+Solvent used,Propylene carbonate,0.10,mL
+Solvent used,Pyridine,0.10,mL
+Solvent used,Sodium hydroxide solution (NaOH),0.02,mL
+Solvent used,Sulfuric acid (H₂SO₄),0.02,mL
+Solvent used,Tetrahydrofuran (THF),0.06,mL
+Solvent used,Toluene,1.48,mL
+Reagent used,Acetic acid (glacial),0.03,mg
+Reagent used,Ammonium acetate solution,0.05,mg
+Reagent used,Ammonium hydroxide,0.03,mg
+Reagent used,Ammonium formate solution,0.06,mg
+Reagent used,Borate buffer,0.02,mg
+Reagent used,Bromothymol blue solution,0.10,mg
+Reagent used,Buffer saline (PBS),0.01,mg
+Reagent used,"Carboxylic acid derivatization reagent (e.g., EDC)",0.40,mg
+Reagent used,Dansyl chloride reagent,0.80,mg
+Reagent used,"Derivatization mix (silylation, BSTFA)",0.90,mg
+Reagent used,EDTA solution,0.02,mg
+Reagent used,Formic acid (LCMS grade),0.20,mg
+Reagent used,HCl (hydrochloric acid),0.02,mg
+Reagent used,Hydrogen peroxide,0.02,mg
+Reagent used,Internal standard solution (typical LCMS),1.00,mg
+Reagent used,Iodine solution,0.05,mg
+Reagent used,Methanolic HCl,0.10,mg
+Reagent used,NaOH solution,0.02,mg
+Reagent used,Ninhydrin reagent,0.15,mg
+Reagent used,Oxalic acid solution,0.03,mg
+Reagent used,Perchloric acid,0.05,mg
+Reagent used,Phosphate buffer,0.02,mg
+Reagent used,Phosphoric acid,0.03,mg
+Reagent used,Potassium hydroxide solution,0.02,mg
+Reagent used,Potassium phosphate buffer,0.02,mg
+Reagent used,QuEChERS extraction salts,0.05,mg
+Reagent used,Silylation reagent (BSTFA + TMCS),0.90,mg
+Reagent used,Sodium acetate buffer,0.02,mg
+Reagent used,Sodium carbonate solution,0.02,mg
+Reagent used,Sodium chloride solution,0.01,mg
+Reagent used,Sodium citrate buffer,0.02,mg
+Reagent used,Sodium sulfate (solution),0.02,mg
+Reagent used,Sulfuric acid,0.02,mg
+Reagent used,TCA (trichloroacetic acid),0.04,mg
+Reagent used,TFA (trifluoroacetic acid),0.25,mg
+Reagent used,Triethylamine,0.12,mg
+Reagent used,Tris buffer,0.02,mg
+Reagent used,Urea solution,0.03,mg
+Reagent used,Zinc sulfate solution,0.03,mg
+Reagent used,Other,0.00,mg
+Sample prep materials,Autosampler vial + cap,0.20,pcs
+Sample prep materials,Centrifuge tube (15 mL),0.15,pcs
+Sample prep materials,Centrifuge tube (50 mL),0.25,pcs
+Sample prep materials,Centrifugal filter (0.22 µm),1.20,pcs
+Sample prep materials,Cryovial (cryogenic container),0.20,pcs
+Sample prep materials,Derivatization micro vial,0.15,pcs
+Sample prep materials,Disposable filtration funnel,0.10,pcs
+Sample prep materials,Disposable glass Pasteur pipette,0.05,pcs
+Sample prep materials,Disposable polypropylene pipette,0.05,pcs
+Sample prep materials,Disposable spatula,0.05,pcs
+Sample prep materials,Extraction tube (polypropylene),0.10,pcs
+Sample prep materials,Filter paper (qualitative),0.03,pcs
+Sample prep materials,Glass extraction tube,0.20,pcs
+Sample prep materials,Glass vial (headspace),0.30,pcs
+Sample prep materials,Micro centrifuge tube (1.5–2 mL),0.05,pcs
+Sample prep materials,Micro pipette tip (filtered),0.03,pcs
+Sample prep materials,Micro pipette tip (universal),0.01,pcs
+Sample prep materials,Nylon syringe filter (0.22 µm),0.25,pcs
+Sample prep materials,Nylon syringe filter (0.45 µm),0.20,pcs
+Sample prep materials,"Peptide cleanup plates (C18, StageTips)",2.50,pcs
+Sample prep materials,pH strip,0.02,pcs
+Sample prep materials,"Protein digestion kits (trypsin, LysC)",3.00,pcs
+Sample prep materials,PTFE syringe filter (0.22 µm),0.40,pcs
+Sample prep materials,PTFE syringe filter (0.45 µm),0.35,pcs
+Sample prep materials,PVDF syringe filter (0.22 µm),0.30,pcs
+Sample prep materials,PVDF syringe filter (0.45 µm),0.25,pcs
+Sample prep materials,QuEChERS dispersive SPE tube (dSPE),0.60,pcs
+Sample prep materials,QuEChERS extraction pouch (salts),0.50,pcs
+Sample prep materials,Septum (headspace vial),0.10,pcs
+Sample prep materials,Solidphase microextraction fiber (SPME),3.00,pcs
+Sample prep materials,SPE cartridge (C18),1.00,pcs
+Sample prep materials,SPE cartridge (HLB),1.50,pcs
+Sample prep materials,SPE cartridge (mixedmode),1.80,pcs
+Sample prep materials,SPE cartridge (SAX),1.20,pcs
+Sample prep materials,SPE cartridge (SCX),1.20,pcs
+Sample prep materials,"Syringe (disposable, 1–5 mL)",0.10,pcs
+Sample prep materials,"Syringe (disposable, 10 mL)",0.15,pcs
+Sample prep materials,Vial insert (glass),0.10,pcs
+Sample prep materials,Vial insert (polymer),0.08,pcs
+Sample prep materials,Weighing boat (plastic),0.03,pcs
+Sample prep materials,Weighing paper,0.02,pcs
+Sample prep materials,Isotopelabeled internal standards,5.00,pcs

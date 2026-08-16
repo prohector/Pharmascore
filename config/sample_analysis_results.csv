@@ -1,0 +1,43 @@
+sample,difficulty
+Baby food (purees),4
+Beer,2
+Blood (whole),5
+Cheese (hard),4
+Cheese (soft),5
+Chocolate,5
+Coffee (brew),2
+Cosmetic creams,4
+Cosmetic lotions,3
+Dairy milk,3
+Energy drinks,1
+Fish tissue,5
+Fruit juice,2
+Honey,4
+Meat (raw),5
+Meat (processed),4
+Oil (vegetable),5
+Olive oil,5
+Oral tablets (immediaterelease),1
+Oral tablets (modifiedrelease),3
+Plant leaves (extracts),4
+Plant roots (extracts),5
+Protein shakes,3
+Sea water,2
+Serum (human),5
+Skin tissue (biopsy),5
+Soft drinks,1
+Soil (agricultural),5
+Tea (brew),2
+Urine,3
+Vegetable puree,4
+Vegetable tissue (raw),4
+Wastewater,5
+Wine (red),3
+Wine (white),2
+Yogurt,4
+Water (drinking),1
+Water (groundwater),3
+Water (surface),3
+Whole eggs,4
+
+```

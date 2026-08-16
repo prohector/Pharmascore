@@ -3,6 +3,10 @@
     return !!area && area.title === 'Equipment Fixed Costs';
   }
 
+  function isAnalyticalPerformanceAreaLocal(area) {
+    return !!area && area.title === 'Analytical Performance';
+  }
+
   function isAnalyticalConsumablesAreaLocal(area) {
     return !!area && area.title === 'Analytical Consumables';
   }
@@ -317,6 +321,21 @@
         if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
         const nextArea = QUESTION_AREAS[currentTab];
         if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+        if (isAnalyticalPerformanceAreaLocal(nextArea)) analyticalPerformanceSubTab = direction > 0 ? 0 : ANALYTICAL_PERFORMANCE_SUBTABS.length - 1;
+        if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
+      }
+    } else if (isAnalyticalPerformanceAreaLocal(area)) {
+      if (direction > 0 && analyticalPerformanceSubTab < ANALYTICAL_PERFORMANCE_SUBTABS.length - 1) {
+        analyticalPerformanceSubTab += 1;
+      } else if (direction < 0 && analyticalPerformanceSubTab > 0) {
+        analyticalPerformanceSubTab -= 1;
+      } else {
+        currentTab += direction;
+        if (currentTab < 0) currentTab = 0;
+        if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
+        const nextArea = QUESTION_AREAS[currentTab];
+        if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+        if (isAnalyticalPerformanceAreaLocal(nextArea)) analyticalPerformanceSubTab = direction > 0 ? 0 : ANALYTICAL_PERFORMANCE_SUBTABS.length - 1;
         if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
       }
     } else if (isAnalyticalConsumablesAreaLocal(area)) {
@@ -330,6 +349,7 @@
         if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
         const nextArea = QUESTION_AREAS[currentTab];
         if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+        if (isAnalyticalPerformanceAreaLocal(nextArea)) analyticalPerformanceSubTab = direction > 0 ? 0 : ANALYTICAL_PERFORMANCE_SUBTABS.length - 1;
         if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
       }
     } else {
@@ -338,6 +358,7 @@
       if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
       const nextArea = QUESTION_AREAS[currentTab];
       if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+      if (isAnalyticalPerformanceAreaLocal(nextArea)) analyticalPerformanceSubTab = direction > 0 ? 0 : ANALYTICAL_PERFORMANCE_SUBTABS.length - 1;
       if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
     }
     renderTabs();
@@ -353,6 +374,7 @@
     saveCurrentTabAnswers();
     currentTab = idx;
     if (isFixedCostsAreaLocal(QUESTION_AREAS[currentTab])) fixedCostsSubTab = 0;
+    if (isAnalyticalPerformanceAreaLocal(QUESTION_AREAS[currentTab])) analyticalPerformanceSubTab = 0;
     if (isAnalyticalConsumablesAreaLocal(QUESTION_AREAS[currentTab])) analyticalConsumablesSubTab = 0;
     renderTabs();
     renderQuestions();

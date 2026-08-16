@@ -11,9 +11,11 @@
     BUFFER_OPTIONS: [],
     AUXILIARY_EQUIPMENT_OPTIONS: [],
     INSTRUMENT_OPTIONS: [],
+    SAMPLE_ANALYSIS_RESULTS_OPTIONS: [],
     SOURCES_LOADED: false,
     currentTab: 0,
     fixedCostsSubTab: 0,
+    analyticalPerformanceSubTab: 0,
     analyticalConsumablesSubTab: 0,
     ANSWERS: {},
     RECURRING_MIXES: {},
@@ -22,6 +24,10 @@
       { title: 'Section 1: Primary Instrumentation', questionIds: ['equip_basic'] },
       { title: 'Section 2: Column Characteristics', questionIds: ['equip_section2'] },
       { title: 'Section 3: Auxiliary Equipment', questionIds: ['equip_section3', 'aux_pretreat_basic', 'aux_pretreat_advanced', 'aux_pretreat_omics', 'aux_pretreat_software'] }
+    ],
+    ANALYTICAL_PERFORMANCE_SUBTABS: [
+      { title: 'Section 1: Method performance', questionIds: ['perf0', 'perf1', 'perf2', 'perf3', 'perf4', 'perf5', 'perf6', 'perf7', 'perf8', 'perf9', 'perf10', 'perf11', 'perf12'] },
+      { title: 'Section 2: Matrix performance', questionIds: ['sample_analysis_results_heading', 'sample_analysis_results', 'perf13', 'perf14', 'perf15', 'perf17'] }
     ],
     ANALYTICAL_CONSUMABLES_SUBTABS: [
       { title: 'Section 1: Mobile phase', questionIds: ['econ_rec1'] },
@@ -129,6 +135,11 @@
       set(v) { state.INSTRUMENT_OPTIONS = v; },
       configurable: true
     },
+    SAMPLE_ANALYSIS_RESULTS_OPTIONS: {
+      get() { return state.SAMPLE_ANALYSIS_RESULTS_OPTIONS; },
+      set(v) { state.SAMPLE_ANALYSIS_RESULTS_OPTIONS = v; },
+      configurable: true
+    },
     SOURCES_LOADED: {
       get() { return state.SOURCES_LOADED; },
       set(v) { state.SOURCES_LOADED = v; },
@@ -142,6 +153,11 @@
     fixedCostsSubTab: {
       get() { return state.fixedCostsSubTab; },
       set(v) { state.fixedCostsSubTab = v; },
+      configurable: true
+    },
+    analyticalPerformanceSubTab: {
+      get() { return state.analyticalPerformanceSubTab; },
+      set(v) { state.analyticalPerformanceSubTab = v; },
       configurable: true
     },
     analyticalConsumablesSubTab: {
@@ -167,6 +183,11 @@
     FIXED_COST_SUBTABS: {
       get() { return state.FIXED_COST_SUBTABS; },
       set(v) { state.FIXED_COST_SUBTABS = v; },
+      configurable: true
+    },
+    ANALYTICAL_PERFORMANCE_SUBTABS: {
+      get() { return state.ANALYTICAL_PERFORMANCE_SUBTABS; },
+      set(v) { state.ANALYTICAL_PERFORMANCE_SUBTABS = v; },
       configurable: true
     },
     ANALYTICAL_CONSUMABLES_SUBTABS: {

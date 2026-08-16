@@ -99,14 +99,15 @@
 
     try {
       const cacheBuster = `t=${Date.now()}`;
-      const [questionsResult, solventsResult, columnsResult, buffersResult, auxiliaryResult, samplePretreatmentResult, instrumentsResult] = await Promise.allSettled([
+      const [questionsResult, solventsResult, columnsResult, buffersResult, auxiliaryResult, samplePretreatmentResult, instrumentsResult, sampleAnalysisResultsResult] = await Promise.allSettled([
         fetch(`config/questions.csv?${cacheBuster}`, { cache: 'no-store' }),
         fetch(`config/solvents.csv?${cacheBuster}`, { cache: 'no-store' }),
         fetch(`config/columns.csv?${cacheBuster}`, { cache: 'no-store' }),
         fetch(`config/buffers.csv?${cacheBuster}`, { cache: 'no-store' }),
         fetch(`config/auxiliary_equipment.csv?${cacheBuster}`, { cache: 'no-store' }),
         fetch(`config/sample_pretreatment_equipment.csv?${cacheBuster}`, { cache: 'no-store' }),
-        fetch(`config/instruments.csv?${cacheBuster}`, { cache: 'no-store' })
+        fetch(`config/instruments.csv?${cacheBuster}`, { cache: 'no-store' }),
+        fetch(`config/sample_analysis_results.csv?${cacheBuster}`, { cache: 'no-store' })
       ]);
 
       const questionsRes = questionsResult.status === 'fulfilled' ? questionsResult.value : null;
@@ -121,14 +122,15 @@
       if (!columnsRes || !columnsRes.ok) throw new Error('Column file not found');
       if (!buffersRes || !buffersRes.ok) throw new Error('Buffer file not found');
 
-      const [csvText, solventsText, columnsText, buffersText, auxiliaryText, samplePretreatmentText, instrumentsText] = await Promise.all([
+      const [csvText, solventsText, columnsText, buffersText, auxiliaryText, samplePretreatmentText, instrumentsText, sampleAnalysisResultsText] = await Promise.all([
         questionsRes.text(),
         solventsRes.text(),
         columnsRes.text(),
         buffersRes.text(),
         auxiliaryRes && auxiliaryRes.ok ? auxiliaryRes.text() : '',
         samplePretreatmentRes && samplePretreatmentRes.ok ? samplePretreatmentRes.text() : '',
-        instrumentsResult && instrumentsResult.status === 'fulfilled' && instrumentsResult.value && instrumentsResult.value.ok ? instrumentsResult.value.text() : ''
+        instrumentsResult && instrumentsResult.status === 'fulfilled' && instrumentsResult.value && instrumentsResult.value.ok ? instrumentsResult.value.text() : '',
+        sampleAnalysisResultsResult && sampleAnalysisResultsResult.status === 'fulfilled' && sampleAnalysisResultsResult.value && sampleAnalysisResultsResult.value.ok ? sampleAnalysisResultsResult.value.text() : ''
       ]);
 
       window.SOLVENT_OPTIONS = parseNamedCsvRows(solventsText);
@@ -142,6 +144,16 @@
         ...item,
         category: item.category || item.group || item.section || 'Other'
       }));
+      window.SAMPLE_ANALYSIS_RESULTS_OPTIONS = parseCSV(sampleAnalysisResultsText).map(row => {
+        const sample = row.sample || row.matrix || row.substrate || row.name || '';
+        const difficulty = Number(row.difficulty ?? row.score ?? row.value ?? 0) || 0;
+        return {
+          sample,
+          difficulty,
+          value: String(difficulty),
+          label: `${sample}${difficulty ? ` — ${difficulty}` : ''}`
+        };
+      }).filter(item => item.sample);
 
       try {
         if (instrumentsText && instrumentsText.trim()) {
