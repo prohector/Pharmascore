@@ -99,10 +99,10 @@ main.hidden {
 }
 
 .section-guidance {
-	position: absolute;
-	top: 12px;
-	left: 128px;
-	width: min(320px, calc(100vw - 24px));
+	position: fixed;
+	top: auto;
+	left: auto;
+	right: calc(100% - 920px - 48px);
 	max-height: calc(100vh - 140px);
 	overflow: auto;
 	background: #f8fafb;
@@ -111,6 +111,8 @@ main.hidden {
 	border-radius: 10px;
 	box-shadow: 0 16px 30px rgba(26, 58, 82, 0.12);
 	z-index: 30;
+	width: min(340px, calc(100vw - 32px));
+	padding: 16px;
 }
 
 .section-guidance h3 {
@@ -193,6 +195,10 @@ main.hidden {
 	border-radius: 10px;
 }
 
+#analytical-consumables-subtabs {
+	margin-top: 8px;
+}
+
 .fixed-cost-subtabs.hidden {
 	display: none;
 }
@@ -223,6 +229,74 @@ main.hidden {
 	box-shadow: 0 8px 18px rgba(26, 58, 82, 0.12);
 }
 
+.analytical-consumables-subtab {
+	flex: 1 1 180px;
+	min-width: 0;
+	padding: 10px 12px;
+	border: 1px solid #d4dce5;
+	border-radius: 8px;
+	background: #ffffff;
+	color: #35526a;
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+	transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.analytical-consumables-subtab:hover {
+	background: #f3f7fb;
+	border-color: #9eb6c8;
+}
+
+.analytical-consumables-subtab.active {
+	background: linear-gradient(135deg, #1a3a52 0%, #2d5a7b 100%);
+	color: #ffffff;
+	border-color: #2d5a7b;
+	box-shadow: 0 8px 18px rgba(26, 58, 82, 0.12);
+}
+
+.equipment-checklist-wrap {
+	margin-top: 8px;
+	border: 1px solid #d7e3ee;
+	border-radius: 10px;
+	background: #f8fafb;
+	overflow: hidden;
+}
+
+.equipment-checklist-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 12px 14px;
+	border: 0;
+	background: transparent;
+	color: #1a3a52;
+	font-size: 14px;
+	font-weight: 700;
+	text-align: left;
+	cursor: pointer;
+}
+
+.equipment-checklist-toggle::after {
+	content: '+';
+	font-size: 18px;
+	line-height: 1;
+	color: #2d5a7b;
+}
+
+.equipment-checklist-toggle.is-open::after {
+	content: '−';
+}
+
+.equipment-checklist-panel {
+	padding: 0 14px 14px;
+}
+
+.equipment-checklist-panel.hidden {
+	display: none;
+}
+
 .recurring-run-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -234,32 +308,56 @@ main.hidden {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 10px;
-	margin: 14px 0 8px;
-	padding: 10px 12px;
-	background: #f7f9fb;
-	border: 1px solid #dfe7ee;
-	border-radius: 8px;
+	gap: 12px;
+	margin: 18px 0 12px;
+	padding: 14px 16px;
+	background: linear-gradient(135deg, #f0f6fb 0%, #e8f2f8 100%);
+	border: 2px solid #2d5a7b;
+	border-radius: 10px;
+	box-shadow: 0 4px 12px rgba(45, 90, 123, 0.08);
 }
 
 .toggle-label {
 	font-size: 12px;
 	font-weight: 700;
 	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: #526d83;
+	letter-spacing: 0.08em;
+	color: #1a3a52;
 }
 
 .toggle-option {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	gap: 6px;
-	padding: 6px 10px;
+	padding: 10px 16px;
 	border-radius: 999px;
 	background: #ffffff;
-	border: 1px solid #d0dce7;
-	font-size: 12px;
+	border: 2px solid #d0dce7;
+	font-size: 13px;
+	font-weight: 600;
 	color: #35526a;
+	cursor: pointer;
+	transition: all 200ms ease;
+}
+
+.toggle-option:hover {
+	border-color: #2d5a7b;
+	background: #f0f6fb;
+}
+
+.toggle-option input[type="radio"] {
+	cursor: pointer;
+	margin: 0 4px 0 0;
+}
+
+.toggle-option input[type="radio"]:checked + span,
+.toggle-option input[type="radio"]:checked ~ span {
+	font-weight: 700;
+}
+
+.toggle-option input[type="radio"]:checked ~ span {
+	color: #1a3a52;
 }
 
 .recurring-cost-message {
@@ -764,16 +862,17 @@ select.form-input:disabled {
 }
 
 .form-input-readonly {
-	background-color: #f0fdf4;
-	color: #166534;
-	border-color: #bbf7d0;
+	background-color: #f7fafc;
+	color: #5a6f82;
+	border: none;
 	cursor: not-allowed;
 	font-weight: 500;
 }
 
 .form-input-readonly:focus {
-	border-color: #86efac;
-	box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.08), 0 2px 8px rgba(26, 58, 82, 0.08);
+	border: none;
+	box-shadow: none;
+	outline: none;
 }
 
 /* Number input with units */
@@ -979,8 +1078,22 @@ select.form-input:disabled {
 .chem-lookup-total-section .form-input {
 	margin-top: 0px;
 	width: 100%;
-	font-weight: 600;
-	letter-spacing: 0.3px;
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.2px;
+	color: #536a7f;
+	background: #f7fafc;
+	border-color: transparent;
+	border-width: 0;
+	opacity: 0.9;
+}
+
+.chem-lookup-total-section .input-label-small {
+	font-size: 10px;
+	letter-spacing: 0.18px;
+	text-transform: uppercase;
+	color: #70859a;
+	font-weight: 700;
 }
 
 /* ===========================
@@ -1531,6 +1644,50 @@ button[type="button"]:disabled {
 	background: linear-gradient(180deg, #fbfdff 0%, #f8fafb 100%);
 	max-height: 420px;
 	overflow: auto;
+}
+
+.equipment-check-item-wrap {
+	display: grid;
+	gap: 8px;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: #ffffff;
+	border: 1px solid #e5edf4;
+	box-shadow: 0 1px 3px rgba(26, 58, 82, 0.04);
+}
+
+.equipment-check-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 14px;
+	line-height: 1.45;
+	color: #1a3a52;
+	cursor: pointer;
+}
+
+.equipment-check-item input[type="checkbox"] {
+	accent-color: #2d5a7b;
+	flex-shrink: 0;
+}
+
+.equipment-check-name {
+	flex: 1;
+}
+
+.equipment-check-price {
+	font-size: 12px;
+	color: #5a6f82;
+}
+
+.sample-pretreat-amount-row {
+	display: grid;
+	gap: 6px;
+	padding-left: 28px;
+}
+
+.sample-pretreat-amount-input {
+	max-width: 240px;
 }
 
 .equipment-item {

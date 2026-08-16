@@ -3,15 +3,29 @@
     return !!area && area.title === 'Equipment Fixed Costs';
   }
 
+  function isAnalyticalConsumablesArea(area) {
+    return !!area && area.title === 'Analytical Consumables';
+  }
+
   function getFixedCostSubTab() {
     return FIXED_COST_SUBTABS[fixedCostsSubTab] || FIXED_COST_SUBTABS[0];
   }
 
+  function getAnalyticalConsumablesSubTab() {
+    return ANALYTICAL_CONSUMABLES_SUBTABS[analyticalConsumablesSubTab] || ANALYTICAL_CONSUMABLES_SUBTABS[0];
+  }
+
   function getQuestionsForCurrentView(area) {
     if (!area) return [];
-    if (!isFixedCostsArea(area)) return area.questions;
-    const selectedIds = new Set((getFixedCostSubTab().questionIds || []));
-    return area.questions.filter(q => selectedIds.has(q.id));
+    if (isFixedCostsArea(area)) {
+      const selectedIds = new Set((getFixedCostSubTab().questionIds || []));
+      return area.questions.filter(q => selectedIds.has(q.id));
+    }
+    if (isAnalyticalConsumablesArea(area)) {
+      const selectedIds = new Set((getAnalyticalConsumablesSubTab().questionIds || []));
+      return area.questions.filter(q => selectedIds.has(q.id));
+    }
+    return area.questions;
   }
 
   function toggleSectionGuidance(forceOpen) {
@@ -44,6 +58,8 @@
     if (subtitleEl) {
       if (isFixedCostsArea(area)) {
         subtitleEl.textContent = `${getFixedCostSubTab().title}. ${guidance.summary}`;
+      } else if (isAnalyticalConsumablesArea(area)) {
+        subtitleEl.textContent = `${getAnalyticalConsumablesSubTab().title}. ${guidance.summary}`;
       } else {
         subtitleEl.textContent = guidance.summary;
       }
@@ -54,38 +70,75 @@
   }
 
   function renderFixedCostSubTabs() {
-    const container = document.getElementById('fixed-cost-subtabs');
-    if (!container) return;
     const area = QUESTION_AREAS[currentTab];
-    if (!isFixedCostsArea(area)) {
-      container.classList.add('hidden');
-      container.innerHTML = '';
-      return;
+
+    const fixedContainer = document.getElementById('fixed-cost-subtabs');
+    if (fixedContainer) {
+      if (!isFixedCostsArea(area)) {
+        fixedContainer.classList.add('hidden');
+        fixedContainer.innerHTML = '';
+      } else {
+        fixedContainer.innerHTML = FIXED_COST_SUBTABS.map((tab, idx) => `
+          <button
+            type="button"
+            class="fixed-cost-subtab ${idx === fixedCostsSubTab ? 'active' : ''}"
+            data-subtab-index="${idx}"
+          >
+            ${tab.title}
+          </button>
+        `).join('');
+        fixedContainer.classList.remove('hidden');
+        fixedContainer.querySelectorAll('.fixed-cost-subtab').forEach(button => {
+          button.addEventListener('click', () => {
+            if (typeof saveCurrentTabAnswers === 'function') saveCurrentTabAnswers();
+            fixedCostsSubTab = Number(button.dataset.subtabIndex || 0);
+            renderFixedCostSubTabs();
+            renderTabs();
+            renderQuestions();
+            if (typeof restoreCurrentTabAnswers === 'function') restoreCurrentTabAnswers();
+            updateSectionTitle();
+            updateProgress();
+            updateNavButtons();
+            updateSectionGuidance();
+            checkFormValidity();
+          });
+        });
+      }
     }
 
-    container.innerHTML = FIXED_COST_SUBTABS.map((tab, idx) => `
-      <button
-        type="button"
-        class="fixed-cost-subtab ${idx === fixedCostsSubTab ? 'active' : ''}"
-        data-subtab-index="${idx}"
-      >
-        ${tab.title}
-      </button>
-    `).join('');
-
-    container.classList.remove('hidden');
-    container.querySelectorAll('.fixed-cost-subtab').forEach(button => {
-      button.addEventListener('click', () => {
-        fixedCostsSubTab = Number(button.dataset.subtabIndex || 0);
-        renderTabs();
-        renderQuestions();
-        updateSectionTitle();
-        updateProgress();
-        updateNavButtons();
-        updateSectionGuidance();
-        checkFormValidity();
-      });
-    });
+    const analyticalContainer = document.getElementById('analytical-consumables-subtabs');
+    if (analyticalContainer) {
+      if (!isAnalyticalConsumablesArea(area)) {
+        analyticalContainer.classList.add('hidden');
+        analyticalContainer.innerHTML = '';
+      } else {
+        analyticalContainer.innerHTML = ANALYTICAL_CONSUMABLES_SUBTABS.map((tab, idx) => `
+          <button
+            type="button"
+            class="analytical-consumables-subtab ${idx === analyticalConsumablesSubTab ? 'active' : ''}"
+            data-analytical-subtab-index="${idx}"
+          >
+            ${tab.title}
+          </button>
+        `).join('');
+        analyticalContainer.classList.remove('hidden');
+        analyticalContainer.querySelectorAll('.analytical-consumables-subtab').forEach(button => {
+          button.addEventListener('click', () => {
+            if (typeof saveCurrentTabAnswers === 'function') saveCurrentTabAnswers();
+            analyticalConsumablesSubTab = Number(button.dataset.analyticalSubtabIndex || 0);
+            renderFixedCostSubTabs();
+            renderTabs();
+            renderQuestions();
+            if (typeof restoreCurrentTabAnswers === 'function') restoreCurrentTabAnswers();
+            updateSectionTitle();
+            updateProgress();
+            updateNavButtons();
+            updateSectionGuidance();
+            checkFormValidity();
+          });
+        });
+      }
+    }
   }
 
   function renderEquipmentPriceSummary() {
@@ -109,7 +162,7 @@
 
     summaryEl.innerHTML = `
       <div class="results-price-summary-header">
-        <strong>Total equipment &amp; consumables cost</strong>
+        <strong>Total score</strong>
         <span>${total.toFixed(2)} €</span>
       </div>
       <ul>${equipmentRows.join('')}</ul>
@@ -157,22 +210,34 @@
     updateSectionGuidance();
   }
 
+  function getAreaSubTabCount(area) {
+    if (isFixedCostsArea(area)) return FIXED_COST_SUBTABS.length;
+    if (isAnalyticalConsumablesArea(area)) return ANALYTICAL_CONSUMABLES_SUBTABS.length;
+    return 1;
+  }
+
+  function getAreaSubTabIndex(area) {
+    if (isFixedCostsArea(area)) return fixedCostsSubTab;
+    if (isAnalyticalConsumablesArea(area)) return analyticalConsumablesSubTab;
+    return 0;
+  }
+
   function updateProgress() {
     const progressBar = document.getElementById('progress-bar');
     const progressLabel = document.getElementById('progress-label');
     if (!QUESTION_AREAS.length) return;
-    const totalSteps = QUESTION_AREAS.reduce((total, area) => total + (isFixedCostsArea(area) ? FIXED_COST_SUBTABS.length : 1), 0);
+    const totalSteps = QUESTION_AREAS.reduce((total, area) => total + getAreaSubTabCount(area), 0);
     let index = 0;
     for (let i = 0; i < currentTab; i++) {
-      index += isFixedCostsArea(QUESTION_AREAS[i]) ? FIXED_COST_SUBTABS.length : 1;
+      index += getAreaSubTabCount(QUESTION_AREAS[i]);
     }
-    if (isFixedCostsArea(QUESTION_AREAS[currentTab])) index += fixedCostsSubTab;
+    const currentArea = QUESTION_AREAS[currentTab];
+    if (currentArea) index += getAreaSubTabIndex(currentArea);
     const stepNumber = Math.min(index + 1, totalSteps);
     const percent = totalSteps > 0 ? (stepNumber / totalSteps) * 100 : 0;
     if (progressBar) progressBar.style.width = `${percent}%`;
-    const area = QUESTION_AREAS[currentTab];
     if (progressLabel) {
-      progressLabel.textContent = `Section ${stepNumber} of ${totalSteps}: ${area.title}`;
+      progressLabel.textContent = `Section ${stepNumber} of ${totalSteps}: ${currentArea ? currentArea.title : 'Section'}`;
     }
   }
 
@@ -183,8 +248,8 @@
     const currentArea = QUESTION_AREAS[currentTab];
     if (!currentArea) return;
 
-    const isFirst = currentTab === 0 && (!isFixedCostsArea(currentArea) || fixedCostsSubTab === 0);
-    const isLast = currentTab === QUESTION_AREAS.length - 1 && (!isFixedCostsArea(currentArea) || fixedCostsSubTab === FIXED_COST_SUBTABS.length - 1);
+    const isFirst = currentTab === 0 && getAreaSubTabIndex(currentArea) === 0;
+    const isLast = currentTab === QUESTION_AREAS.length - 1 && getAreaSubTabIndex(currentArea) === getAreaSubTabCount(currentArea) - 1;
     if (prevBtn) prevBtn.classList.toggle('hidden', isFirst);
     if (nextBtn) nextBtn.classList.toggle('hidden', isLast);
     if (submitBtn) submitBtn.classList.toggle('hidden', !isLast);
@@ -447,6 +512,9 @@
         const fieldWrap = field.closest('.recurring-cost-field');
         if (fieldWrap) fieldWrap.classList.toggle('hidden', mode === 'gradient');
       });
+      root.querySelectorAll('[data-gradient-runtime-fields]').forEach(field => {
+        field.classList.toggle('hidden', mode === 'gradient');
+      });
     }
 
     const tableWrap = document.getElementById(ids.gradientTableWrapId);
@@ -472,7 +540,7 @@
         <tr>
           <th>From time</th>
           <th>To time</th>
-          ${letters.map(letter => `<th>${letter}%</th>`).join('')}
+          ${assignments.map(assignment => `<th>${assignment.entry.name}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
@@ -542,9 +610,10 @@
       return;
     }
 
+    const isGradient = mix.gradientMode === 'gradient';
     listEl.innerHTML = entries.map((entry, index) => `
-      <div class="recurring-cost-entry">
-        <span>${entry.gradientLetter ? `${entry.gradientLetter} - ` : ''}${entry.name} (${entry.percent}%)</span>
+      <div class="recurring-cost-entry\">
+        <span>${isGradient ? entry.name : (entry.gradientLetter ? `${entry.gradientLetter} - ` : '') + entry.name} ${!isGradient ? `(${entry.percent}%)` : ''}</span>
         <span>${Number(entry.cost || 0).toFixed(2)} EUR</span>
         <button type="button" class="recurring-remove-btn" data-question-id="${questionId}" data-category="${category}" data-index="${index}">Remove</button>
       </div>
@@ -571,8 +640,10 @@
       aux_pretreat_basic: 'Basic Sample Analysis',
       aux_pretreat_advanced: 'Advanced Sample Analysis',
       aux_pretreat_omics: 'Omics Sample Analysis',
-      sample_pretreat_basic: 'Basic Sample Pretreatment',
-      sample_pretreat_advanced: 'Advanced Sample Pretreatment'
+      aux_pretreat_software: 'Software',
+      sample_pretreat_solvent: 'Solvent used',
+      sample_pretreat_reagent: 'Reagent used',
+      sample_pretreat_materials: 'Sample prep materials'
     };
     const targetCategory = categoryMap[questionId] || 'Other';
     const source = questionId && String(questionId).startsWith('sample_pretreat_')
@@ -582,6 +653,49 @@
       const itemCategory = String(item.category || item.group || item.section || 'Other');
       return itemCategory === targetCategory;
     });
+  }
+
+  function isSamplePretreatmentChecklist(questionId) {
+    return String(questionId || '').startsWith('sample_pretreat_');
+  }
+
+  function getSamplePretreatmentAmountLabel(questionId, unit) {
+    if (questionId === 'sample_pretreat_solvent') return 'Volume (mL per sample)';
+    if (questionId === 'sample_pretreat_reagent') return 'Weight (g per sample)';
+    if (unit) return `Amount (${unit} per sample)`;
+    return 'Amount (per sample)';
+  }
+
+  function updateEquipmentChecklistTotal(questionId) {
+    const list = document.getElementById(questionId + '_equipment_list');
+    const totalEl = document.getElementById(questionId + '_total');
+    if (!list || !totalEl) return;
+    const isSamplePretreatment = isSamplePretreatmentChecklist(questionId);
+    const checked = Array.from(list.querySelectorAll('input[type="checkbox"]:checked'));
+    let hasMissingAmounts = false;
+    const total = checked.reduce((sum, cb) => {
+      const price = Number(cb.getAttribute('data-price') || 0);
+      if (!isSamplePretreatment) return sum + price;
+      const amountInputId = cb.getAttribute('data-amount-input-id');
+      const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+      const amount = amountEl && amountEl.value !== '' ? Number(amountEl.value) : NaN;
+      if (!Number.isFinite(amount) || amount <= 0) {
+        hasMissingAmounts = true;
+        return sum;
+      }
+      return sum + (price * amount);
+    }, 0);
+
+    if (isSamplePretreatment && (checked.length === 0 || hasMissingAmounts)) {
+      totalEl.value = '';
+      delete ANSWERS[questionId];
+      delete ANSWERS[questionId + '_total'];
+      return;
+    }
+
+    totalEl.value = String(total.toFixed(2));
+    ANSWERS[questionId] = String(total.toFixed(2));
+    ANSWERS[questionId + '_total'] = String(total.toFixed(2));
   }
 
   function addRecurringEntry(questionId, category) {
@@ -761,26 +875,48 @@
               </div>
             </div>
             <div class="chem-lookup-total-section">
-              <label for="${ids.totalId}" class="input-label-small">Selected primary instrumentation cost (EUR)</label>
-              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+              <label for="${ids.totalId}" class="input-label-small">Selected primary instrumentation score</label>
+              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
             </div>
           </div>
         `;
       } else if (q.type === 'equipment_checklist') {
         const equipmentOptions = getAuxiliaryEquipmentOptions(q.id);
-        const equipmentList = equipmentOptions.length ? equipmentOptions.map(item => `
-          <label class="equipment-check-item" for="${q.id}_${String(item.name).replace(/[^a-z0-9]+/gi, '_').toLowerCase()}">
-            <input id="${q.id}_${String(item.name).replace(/[^a-z0-9]+/gi, '_').toLowerCase()}" type="checkbox" value="${String(item.name).replace(/"/g, '&quot;')}" data-price="${Number(item.price || 0)}">
-            <span class="equipment-check-name">${String(item.name)}</span>
-          </label>
-        `).join('') : '<div class="equipment-empty">No auxiliary equipment loaded for this section.</div>';
+        const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
+        const equipmentList = equipmentOptions.length ? equipmentOptions.map(item => {
+          const optionSlug = String(item.name).replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+          const optionId = `${q.id}_${optionSlug}`;
+          const amountInputId = `${optionId}_amount`;
+          const amountRowId = `${optionId}_amount_row`;
+          const unit = String(item.unit || '').trim();
+          const amountLabel = getSamplePretreatmentAmountLabel(q.id, unit);
+          return `
+          <div class="equipment-check-item-wrap">
+            <label class="equipment-check-item" for="${optionId}">
+              <input id="${optionId}" type="checkbox" value="${String(item.name).replace(/"/g, '&quot;')}" data-price="${Number(item.price || 0)}" data-amount-input-id="${amountInputId}">
+              <span class="equipment-check-name">${String(item.name)}</span>
+              <span class="equipment-check-price">(${Number(item.price || 0).toFixed(4)} EUR/${unit || 'unit'})</span>
+            </label>
+            ${isSamplePretreatment ? `
+            <div id="${amountRowId}" class="sample-pretreat-amount-row hidden">
+              <label for="${amountInputId}" class="input-label-small">${amountLabel}</label>
+              <input id="${amountInputId}" type="number" min="0" step="any" class="form-input sample-pretreat-amount-input" data-parent-checkbox-id="${optionId}" placeholder="0">
+            </div>` : ''}
+          </div>`;
+        }).join('') : '<div class="equipment-empty">No auxiliary equipment loaded for this section.</div>';
+        const isFirstChecklistOpen = q.id === 'aux_pretreat_basic' || q.id === 'sample_pretreat_solvent';
         input = `
           <div class="equipment-checklist-wrap">
-            <div id="${q.id}_equipment_list" class="equipment-checklist-list">${equipmentList}</div>
-            <div id="${q.id}_equipment_empty" class="equipment-empty hidden">No instruments were loaded from the auxiliary equipment CSV.</div>
-            <div class="chem-lookup-total-section">
-              <label for="${q.id}_total" class="input-label-small">Total auxiliary equipment cost (EUR)</label>
-              <input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+            <button type="button" class="equipment-checklist-toggle ${isFirstChecklistOpen ? 'is-open' : ''}" data-target="${q.id}_equipment_panel" aria-expanded="${isFirstChecklistOpen ? 'true' : 'false'}">
+              <span>${q.text || q.id}</span>
+            </button>
+            <div id="${q.id}_equipment_panel" class="equipment-checklist-panel ${isFirstChecklistOpen ? '' : 'hidden'}">
+              <div id="${q.id}_equipment_list" class="equipment-checklist-list">${equipmentList}</div>
+              <div id="${q.id}_equipment_empty" class="equipment-empty hidden">No instruments were loaded from the auxiliary equipment CSV.</div>
+              <div class="chem-lookup-total-section">
+                <label for="${q.id}_total" class="input-label-small">${isSamplePretreatment ? 'Total sample pretreatment score' : 'Total auxiliary equipment score'}</label>
+                <input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
+              </div>
             </div>
           </div>
         `;
@@ -801,8 +937,8 @@
               </div>
             </div>
             <div class="chem-lookup-total-section">
-              <label for="${ids.totalId}" class="input-label-small">Total fixed column cost (EUR)</label>
-              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+              <label for="${ids.totalId}" class="input-label-small">Total fixed column score</label>
+              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
             </div>
           </div>
         `;
@@ -817,7 +953,7 @@
 
         input = `
           <div class="recurring-cost-calc" id="${q.id}_calculator">
-            <div class="recurring-cost-grid">
+            <div class="recurring-cost-grid ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}" data-gradient-runtime-fields="true">
               <div class="recurring-cost-field">
                 <label for="${ids.runId}" class="input-label-small">Run time (min)</label>
                 <input id="${ids.runId}" name="${ids.runId}" type="number" min="0" step="any" class="form-input" placeholder="e.g. 30">
@@ -934,8 +1070,8 @@
             </div>
 
             <div class="chem-lookup-total-section">
-              <label for="${ids.totalId}" class="input-label-small">Total analytical consumables cost (EUR)</label>
-              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="View only" class="form-input form-input-readonly">
+              <label for="${ids.totalId}" class="input-label-small">Total analytical consumables score</label>
+              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
             </div>
           </div>
         `;
@@ -996,18 +1132,64 @@
 
       if (q.type === 'equipment_checklist') {
         const list = document.getElementById(q.id + '_equipment_list');
+        const toggle = document.querySelector(`[data-target="${q.id}_equipment_panel"]`);
+        const panel = document.getElementById(`${q.id}_equipment_panel`);
+        const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
+        if (toggle && panel) {
+          toggle.addEventListener('click', () => {
+            const panels = document.querySelectorAll('.equipment-checklist-panel');
+            const isOpen = !panel.classList.contains('hidden');
+            panels.forEach(item => {
+              item.classList.add('hidden');
+              const control = document.querySelector(`[data-target="${item.id}"]`);
+              if (control) {
+                control.classList.remove('is-open');
+                control.setAttribute('aria-expanded', 'false');
+              }
+            });
+            if (!isOpen) {
+              panel.classList.remove('hidden');
+              toggle.classList.add('is-open');
+              toggle.setAttribute('aria-expanded', 'true');
+            }
+          });
+        }
         if (list) {
           list.querySelectorAll('input[type="checkbox"]').forEach(box => {
             box.addEventListener('change', () => {
+              if (isSamplePretreatment) {
+                const amountInputId = box.getAttribute('data-amount-input-id');
+                const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+                const amountRow = amountEl ? amountEl.closest('.sample-pretreat-amount-row') : null;
+                if (amountRow) amountRow.classList.toggle('hidden', !box.checked);
+                if (!box.checked && amountEl) amountEl.value = '';
+              }
               const checked = list.querySelectorAll('input[type="checkbox"]:checked');
-              const total = Array.from(checked).reduce((sum, cb) => sum + Number(cb.getAttribute('data-price') || 0), 0);
-              const totalEl = document.getElementById(q.id + '_total');
-              if (totalEl) totalEl.value = String(total.toFixed(2));
-              ANSWERS[q.id] = String(total.toFixed(2));
-              ANSWERS[q.id + '_total'] = String(total.toFixed(2));
-              ANSWERS[q.id + '_items'] = JSON.stringify(Array.from(checked).map(cb => cb.value));
+              const selectedItems = Array.from(checked).map(cb => {
+                const amountInputId = cb.getAttribute('data-amount-input-id');
+                const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+                const amount = amountEl && amountEl.value !== '' ? Number(amountEl.value) : 0;
+                return { name: cb.value, amount };
+              });
+              ANSWERS[q.id + '_items'] = JSON.stringify(isSamplePretreatment ? selectedItems : selectedItems.map(item => item.name));
+              updateEquipmentChecklistTotal(q.id);
             });
           });
+          if (isSamplePretreatment) {
+            list.querySelectorAll('.sample-pretreat-amount-input').forEach(amountInput => {
+              amountInput.addEventListener('input', () => {
+                const checked = list.querySelectorAll('input[type="checkbox"]:checked');
+                const selectedItems = Array.from(checked).map(cb => {
+                  const amountInputId = cb.getAttribute('data-amount-input-id');
+                  const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+                  const amount = amountEl && amountEl.value !== '' ? Number(amountEl.value) : 0;
+                  return { name: cb.value, amount };
+                });
+                ANSWERS[q.id + '_items'] = JSON.stringify(selectedItems);
+                updateEquipmentChecklistTotal(q.id);
+              });
+            });
+          }
         }
       }
 
@@ -1095,12 +1277,25 @@
             boxes.forEach((box, idx) => {
               box.checked = idx === 0 || idx === 1;
             });
-            const total = Array.from(boxes).filter(b => b.checked).reduce((sum, b) => sum + Number(b.getAttribute('data-price') || 0), 0);
-            ANSWERS[q.id] = String(total);
-            ANSWERS[q.id + '_items'] = JSON.stringify(Array.from(boxes).filter(b => b.checked).map(b => b.value));
-            ANSWERS[q.id + '_total'] = String(total);
-            const totalEl = document.getElementById(q.id + '_total');
-            if (totalEl) totalEl.value = String(total);
+            if (isSamplePretreatmentChecklist(q.id)) {
+              Array.from(boxes).forEach(box => {
+                const amountInputId = box.getAttribute('data-amount-input-id');
+                const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+                const amountRow = amountEl ? amountEl.closest('.sample-pretreat-amount-row') : null;
+                if (amountRow) amountRow.classList.toggle('hidden', !box.checked);
+                if (amountEl && box.checked) amountEl.value = '1';
+              });
+              const selectedItems = Array.from(boxes).filter(b => b.checked).map(b => ({ name: b.value, amount: 1 }));
+              ANSWERS[q.id + '_items'] = JSON.stringify(selectedItems);
+              updateEquipmentChecklistTotal(q.id);
+            } else {
+              const total = Array.from(boxes).filter(b => b.checked).reduce((sum, b) => sum + Number(b.getAttribute('data-price') || 0), 0);
+              ANSWERS[q.id] = String(total);
+              ANSWERS[q.id + '_items'] = JSON.stringify(Array.from(boxes).filter(b => b.checked).map(b => b.value));
+              ANSWERS[q.id + '_total'] = String(total);
+              const totalEl = document.getElementById(q.id + '_total');
+              if (totalEl) totalEl.value = String(total);
+            }
           }
           return;
         }
@@ -1236,6 +1431,7 @@
     updateColumnSelectorTotal: { value: updateColumnSelectorTotal, configurable: true },
     updateInstrumentDropdownTotal: { value: updateInstrumentDropdownTotal, configurable: true },
     getAuxiliaryEquipmentOptions: { value: getAuxiliaryEquipmentOptions, configurable: true },
+    updateEquipmentChecklistTotal: { value: updateEquipmentChecklistTotal, configurable: true },
     renderQuestions: { value: renderQuestions, configurable: true },
     debugAutofillAllQuestions: { value: debugAutofillAllQuestions, configurable: true }
   });

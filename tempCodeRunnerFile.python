@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""
+Wave Simulation Through a Black & White Map
+=============================================
+
+Load a black-and-white PNG image. Black pixels are treated as solid
+walls, white pixels as open space the wave can travel through. A wave
+source (either a plane wave along the left edge, or a point you click)
+is injected and a 2D scalar wave equation is stepped forward in time
+using a finite-difference (leapfrog) scheme. Walls reflect the wave
+(rigid boundary), so if you draw a barrier with one or two gaps in it
+you'll get a single/double-slit style diffraction / interference
+pattern.
+
+The output is a black & white PNG where pixel brightness encodes the
+maximum wave amplitude ("height") reached at that location over the
+course of the simulation (white = high amplitude, black = low
+amplitude / walls).
+
+Dependencies:
+    pip install numpy pillow
+
+Run:
+    python wave_sim_gui.py
+"""
+
+import threading
+import numpy as np
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+from PIL import Image, ImageTk
+
+# ----------------------------------------------------------------------
+# Tunables
+# ----------------------------------------------------------------------
+MAX_SIM_DIM = 260      # simulation grid is downscaled to this max side length
+PREVIEW_DIM = 320      # size (px) of the preview canvases in the GUI
+
+
+class WaveSimApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Black & White Wave Simulator (Double-Slit Style)")
+        self.root.geometry("760x640")
+
+        # --- state -----------------------------------------------------
+        self.wall_mask = None          # bool array, True = wall
+        self.input_pil = None          # PIL image of the loaded map (grid-sized)
+        self.output_pil = None         # PIL image of the simulation result
+        self.input_preview_tk = None
+        self.output_preview_tk = None
+        self.preview_to_grid_scale = (1.0, 1.0)   # preview px -> grid cell
+        self.point_source = None       # (row, col) if user clicked a point source
+        self.sim_running = False
+
+        self._build_ui()
+
+    # ------------------------------------------------------------------
+    # UI construction
+    # ------------------------------------------------------------------
+    def _build_ui(self):
+        top = ttk.Frame(self.root, padding=10)
+        top.pack(side="top", fill="x")
+
+        ttk.Button(top, text="1. Load B/W Image...", command=self.load_image).grid(
+            row=0, column=0, padx=4, pady=4, sticky="w"
+        )
+
+        # Source type selector
+        self.source_var = tk.StringVar(value="plane")
+        ttk.Label(top, text="Source:").grid(row=0, column=1, padx=(20, 4))
+        ttk.Radiobutton(
+            top, text="Plane wave (left edge)", variable=self.source_var, value="plane"
+        ).grid(row=0, column=2, padx=4)
+        ttk.Radiobutton(
+            top, text="Point source (click image)", variable=self.source_var, value="point"
+        ).grid(row=0, column=3, padx=4)
+
+        # Parameters
+        params = ttk.Frame(self.root, padding=(10, 0))
+        params.pack(side="top", fill="x")
+
+        ttk.Label(params, text="Steps:").grid(row=0, column=0, sticky="e")
+        self.steps_var = tk.StringVar(value="400")
+        ttk.Entry(params, textvariable=self.steps_var, width=8).grid(row=0, column=1, padx=4)
+
+        ttk.Label(params, text="Frequency:").grid(row=0, column=2, sticky="e")
+        self.freq_var = tk.StringVar(value="0.06")
+        ttk.Entry(params, textvariable=self.freq_var, width=8).grid(row=0, column=3, padx=4)
+
+        ttk.Label(params, text="Wave speed (<=0.7):").grid(row=0, column=4, sticky="e")
+        self.speed_var = tk.StringVar(value="0.4")
+        ttk.Entry(params, textvariable=self.speed_var, width=8).grid(row=0, column=5, padx=4)
+
+        ttk.Button(params, text="2. Run Simulation", command=self.run_simulation_thread).grid(
+            row=0, column=6, padx=(20, 4)
+        )
+        ttk.Button(params, text="3. Save Output...", command=self.save_output).grid(
+            row=0, column=7, padx=4
+        )
+
+        self.progress = ttk.Progressbar(self.root, orient="horizontal", mode="determinate")
+        self.progress.pack(side="top", fill="x", padx=10, pady=(6, 0))
+
+        self.status_var = tk.StringVar(value="Load a black & white PNG to begin.")
+        ttk.Label(self.root, textvariable=self.status_var, anchor="w").pack(
+            side="top", fill="x", padx=10, pady=(2, 8)
+        )
+
+        # Canvases: input map (click to set point source) and output result
+        canvases = ttk.Frame(self.root, padding=10)
+        canvases.pack(side="top", fill="both", expand=True)
+
+        left_col = ttk.Frame(canvases)
+        left_col.pack(side="left", padx=10, fill="both", expand=True)
+        ttk.Label(left_col, text="Input map (black=wall, white=open)").pack()
+        self.input_canvas = tk.Canvas(left_col, width=PREVIEW_DIM, height=PREVIEW_DIM,
+                                       bg="#222222", highlightthickness=1,
+                                       highlightbackground="#888888")
+        self.input_canvas.pack()
+        self.input_canvas.bind("<Button-1>", self.on_input_click)
+
+        right_col = ttk.Frame(canvases)
+        right_col.pack(side="left", padx=10, fill="both", expand=True)
+        ttk.Label(right_col, text="Output: wave height map").pack()
+        self.output_canvas = tk.Canvas(right_col, width=PREVIEW_DIM, height=PREVIEW_DIM,
+                                        bg="#222222", highlightthickness=1,
+                                        highlightbackground="#888888")
+        self.output_canvas.pack()
+
+    # ------------------------------------------------------------------
+    # Image loading
+    # ------------------------------------------------------------------
+    def load_image(self):
+        path = filedialog.askopenfilename(
+            title="Choose a black & white PNG",
+            filetypes=[("PNG images", "*.png"), ("All images", "*.png *.jpg *.jpeg *.bmp")],
+        )
+        if not path:
+            return
+
+        img = Image.open(path).convert("L")
+
+        # Downscale for simulation performance if needed
+        if max(img.size) > MAX_SIM_DIM:
+            ratio = MAX_SIM_DIM / max(img.size)
+            new_size = (max(1, int(img.size[0] * ratio)), max(1, int(img.size[1] * ratio)))
+            img = img.resize(new_size, Image.LANCZOS)
+
+        arr = np.array(img)
+        # Threshold: pixels darker than mid-gray are walls
+        self.wall_mask = arr < 128
+        self.input_pil = img
+        self.point_source = None
+        self.output_pil = None
+
+        self._draw_preview(self.input_canvas, img, is_input=True)
+        self.output_canvas.delete("all")
+        self.status_var.set(
+            f"Loaded '{path.split('/')[-1]}' -> simulation grid {img.size[0]}x{img.size[1]}. "
+            f"Click the map to place a point source (optional)."
+        )
+
+    def _draw_preview(self, canvas, pil_img, is_input=False):
+        w, h = pil_img.size
+        scale = PREVIEW_DIM / max(w, h)
+        disp_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+        preview = pil_img.resize(disp_size, Image.NEAREST)
+        tk_img = ImageTk.PhotoImage(preview)
+
+        canvas.delete("all")
+        canvas.config(width=disp_size[0], height=disp_size[1])
+        canvas.create_image(0, 0, anchor="nw", image=tk_img)
+
+        if is_input:
+            self.input_preview_tk = tk_img
+            # remember mapping from preview pixel -> full grid cell
+            self.preview_to_grid_scale = (w / disp_size[0], h / disp_size[1])
+            self._preview_size = disp_size
+        else:
+            self.output_preview_tk = tk_img
+
+    def on_input_click(self, event):
+        if self.wall_mask is None:
+            return
+        if self.source_var.get() != "point":
+            self.status_var.set("Switch 'Source' to 'Point source' to place a click source.")
+            return
+        sx, sy = self.preview_to_grid_scale
+        col = int(event.x * sx)
+        row = int(event.y * sy)
+        H, W = self.wall_mask.shape
+        col = min(max(col, 0), W - 1)
+        row = min(max(row, 0), H - 1)
+        if self.wall_mask[row, col]:
+            self.status_var.set("That's a wall pixel - click on white (open) space instead.")
+            return
+        self.point_source = (row, col)
+        # redraw a marker
+        self._draw_preview(self.input_canvas, self.input_pil, is_input=True)
+        px = col / sx
+        py = row / sy
+        r = 4
+        self.input_canvas.create_oval(px - r, py - r, px + r, py + r, fill="red", outline="red")
+        self.status_var.set(f"Point source set at grid ({row}, {col}).")
+
+    # ------------------------------------------------------------------
+    # Simulation
+    # ------------------------------------------------------------------
+    def run_simulation_thread(self):
+        if self.sim_running:
+            return
+        if self.wall_mask is None:
+            messagebox.showwarning("No image", "Please load a black & white PNG first.")
+            return
+        try:
+            steps = int(self.steps_var.get())
+            freq = float(self.freq_var.get())
+            speed = float(self.speed_var.get())
+            if steps <= 0 or freq <= 0 or speed <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Invalid parameters", "Steps/Frequency/Speed must be positive numbers.")
+            return
+
+        if speed > 0.71:
+            if not messagebox.askyesno(
+                "Unstable wave speed",
+                "Wave speed above ~0.7 can make the simulation numerically unstable "
+                "(it may blow up). Continue anyway?",
+            ):
+                return
+
+        if self.source_var.get() == "point" and self.point_source is None:
+            messagebox.showwarning(
+                "No point source", "Click on the input map to place a point source, "
+                "or switch to 'Plane wave (left edge)'."
+            )
+            return
+
+        self.sim_running = True
+        self.progress["value"] = 0
+        self.status_var.set("Running simulation...")
+        threading.Thread(target=self._run_simulation, args=(steps, freq, speed), daemon=True).start()
+
+    def _run_simulation(self, steps, freq, speed):
+        try:
+            H, W = self.wall_mask.shape
+            wall = self.wall_mask
+            open_mask = ~wall
+
+            u = np.zeros((H, W), dtype=np.float64)
+            u_prev = np.zeros((H, W), dtype=np.float64)
+            intensity = np.zeros((H, W), dtype=np.float64)
+
+            c2 = speed ** 2
+            omega = 2 * np.pi * freq
+
+            source_mode = self.source_var.get()
+            if source_mode == "plane":
+                src_col = max(1, int(W * 0.03))
+                src_rows = np.where(open_mask[:, src_col])[0]
+                src_col_arr = np.full(src_rows.shape, src_col)
+            else:
+                r, c = self.point_source
+                src_rows = np.array([r])
+                src_col_arr = np.array([c])
+
+            warmup = int(steps * 0.15)  # ignore initial transient when recording max height
+
+            for t in range(steps):
+                lap = (
+                    np.roll(u, 1, axis=0) + np.roll(u, -1, axis=0)
+                    + np.roll(u, 1, axis=1) + np.roll(u, -1, axis=1)
+                    - 4 * u
+                )
+                u_new = 2 * u - u_prev + c2 * lap
+                u_new[wall] = 0.0
+                # absorb / zero the outer border so np.roll wrap-around doesn't reflect
+                u_new[0, :] = 0.0
+                u_new[-1, :] = 0.0
+                u_new[:, 0] = 0.0
+                u_new[:, -1] = 0.0
+                # inject source (driven / Dirichlet source)
+                u_new[src_rows, src_col_arr] = np.sin(omega * t)
+
+                u_prev, u = u, u_new
+
+                if t > warmup:
+                    np.maximum(intensity, np.abs(u), out=intensity)
+
+                if t % 8 == 0:
+                    progress_pct = 100.0 * t / steps
+                    self.root.after(0, self._update_progress, progress_pct)
+
+            self.root.after(0, self._finish_simulation, intensity)
+
+        except Exception as exc:  # surface errors back on the main thread
+            self.root.after(0, self._simulation_error, str(exc))
+
+    def _update_progress(self, pct):
+        self.progress["value"] = pct
+
+    def _simulation_error(self, msg):
+        self.sim_running = False
+        self.progress["value"] = 0
+        self.status_var.set("Simulation failed.")
+        messagebox.showerror("Simulation error", msg)
+
+    def _finish_simulation(self, intensity):
+        self.progress["value"] = 100
+        norm = intensity / (intensity.max() + 1e-9)
+        img_arr = (norm * 255.0).astype(np.uint8)
+        img_arr[self.wall_mask] = 0  # keep walls black in the output
+        out_img = Image.fromarray(img_arr, mode="L")
+        self.output_pil = out_img
+
+        self._draw_preview(self.output_canvas, out_img, is_input=False)
+        self.sim_running = False
+        self.status_var.set("Simulation complete. You can now save the output.")
+
+    # ------------------------------------------------------------------
+    # Saving
+    # ------------------------------------------------------------------
+    def save_output(self):
+        if self.output_pil is None:
+            messagebox.showwarning("Nothing to save", "Run a simulation first.")
+            return
+        path = filedialog.asksaveasfilename(
+            title="Save wave height map as PNG",
+            defaultextension=".png",
+            filetypes=[("PNG image", "*.png")],
+        )
+        if not path:
+            return
+        self.output_pil.save(path)
+        self.status_var.set(f"Saved output to '{path}'.")
+
+
+def main():
+    root = tk.Tk()
+    style = ttk.Style()
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass
+    app = WaveSimApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

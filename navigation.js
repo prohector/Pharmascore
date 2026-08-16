@@ -1,4 +1,16 @@
 (function () {
+  function isFixedCostsAreaLocal(area) {
+    return !!area && area.title === 'Equipment Fixed Costs';
+  }
+
+  function isAnalyticalConsumablesAreaLocal(area) {
+    return !!area && area.title === 'Analytical Consumables';
+  }
+
+  function isSamplePretreatmentChecklist(questionId) {
+    return String(questionId || '').startsWith('sample_pretreat_');
+  }
+
   function saveCurrentTabAnswers() {
     const area = QUESTION_AREAS[currentTab];
     if (!area) return;
@@ -14,12 +26,23 @@
         const listEl = document.getElementById(q.id + '_equipment_list');
         const totalEl = document.getElementById(q.id + '_total');
         if (!listEl) return;
+        const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
         const selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
-        const selectedNames = selected.map(cb => cb.value);
-        const total = selected.reduce((sum, cb) => sum + Number(cb.getAttribute('data-price') || 0), 0);
-        if (selectedNames.length) ANSWERS[q.id + '_items'] = JSON.stringify(selectedNames);
+        const selectedItems = selected.map(cb => {
+          const amountInputId = cb.getAttribute('data-amount-input-id');
+          const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+          const amount = amountEl && amountEl.value !== '' ? Number(amountEl.value) : NaN;
+          return {
+            name: cb.value,
+            amount: Number.isFinite(amount) ? amount : 0,
+            price: Number(cb.getAttribute('data-price') || 0)
+          };
+        });
+        const hasMissingAmounts = isSamplePretreatment && selectedItems.some(item => !Number.isFinite(item.amount) || item.amount <= 0);
+        const total = selectedItems.reduce((sum, item) => sum + (isSamplePretreatment ? item.price * item.amount : item.price), 0);
+        if (selectedItems.length) ANSWERS[q.id + '_items'] = JSON.stringify(isSamplePretreatment ? selectedItems.map(item => ({ name: item.name, amount: item.amount })) : selectedItems.map(item => item.name));
         else delete ANSWERS[q.id + '_items'];
-        if (selectedNames.length) {
+        if (selectedItems.length && !hasMissingAmounts) {
           ANSWERS[q.id] = String(total);
           ANSWERS[q.id + '_total'] = total || '';
           if (totalEl) totalEl.value = total || '';
@@ -133,14 +156,35 @@
       if (q.type === 'equipment_checklist') {
         const listEl = document.getElementById(q.id + '_equipment_list');
         const totalEl = document.getElementById(q.id + '_total');
+        const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
         if (listEl) {
           let saved = [];
           try { saved = ANSWERS[q.id + '_items'] ? JSON.parse(ANSWERS[q.id + '_items']) : []; } catch (e) { saved = []; }
+          const savedAmountsByName = new Map();
+          if (isSamplePretreatment) {
+            saved.forEach(entry => {
+              if (entry && typeof entry === 'object' && entry.name) savedAmountsByName.set(entry.name, Number(entry.amount || 0));
+            });
+          }
           listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.checked = saved.includes(cb.value);
+            cb.checked = isSamplePretreatment ? savedAmountsByName.has(cb.value) : saved.includes(cb.value);
+            const amountInputId = cb.getAttribute('data-amount-input-id');
+            const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+            const amountRow = amountEl ? amountEl.closest('.sample-pretreat-amount-row') : null;
+            if (amountRow) amountRow.classList.toggle('hidden', !cb.checked);
+            if (amountEl) {
+              if (isSamplePretreatment && savedAmountsByName.has(cb.value)) {
+                amountEl.value = String(savedAmountsByName.get(cb.value));
+              } else {
+                amountEl.value = '';
+              }
+            }
           });
         }
         if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
+        if (isSamplePretreatment && typeof window.updateEquipmentChecklistTotal === 'function') {
+          window.updateEquipmentChecklistTotal(q.id);
+        }
         return;
       }
       if (q.type === 'equipment_dropdown') {
@@ -234,12 +278,35 @@
     area.questions.forEach(q => {
       if (q.type === 'chem_lookup') updateChemLookupTotal(q.id);
     });
+
+    // Auto-fill Practicality section from Analytical Performance data
+    if (area && area.title === 'Practicality') {
+      syncPracticalityFromPerformance();
+    }
+  }
+
+  function syncPracticalityFromPerformance() {
+    // Auto-fill prac1 (number of analytes) from perf section
+    const prac1El = document.getElementById('prac1');
+    if (prac1El && !ANSWERS['prac1']) {
+      // Count the number of analytes from performance - could be inferred from validation questions
+      // For now, this is a placeholder that will trigger when user enters analytical performance
+      // The actual logic depends on which performance fields are filled
+    }
+
+    // Auto-fill prac3 (analysis time) - can be calculated or pulled from gradient section
+    const prac3El = document.getElementById('prac3');
+    if (prac3El && !ANSWERS['prac3']) {
+      // This could be auto-calculated from run time + gradient time if those are available
+      // Placeholder for future auto-fill logic from recurring cost calculator
+    }
   }
 
   function navigateView(direction) {
+
     saveCurrentTabAnswers();
     const area = QUESTION_AREAS[currentTab];
-    if (isFixedCostsArea(area)) {
+    if (isFixedCostsAreaLocal(area)) {
       if (direction > 0 && fixedCostsSubTab < FIXED_COST_SUBTABS.length - 1) {
         fixedCostsSubTab += 1;
       } else if (direction < 0 && fixedCostsSubTab > 0) {
@@ -249,17 +316,33 @@
         if (currentTab < 0) currentTab = 0;
         if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
         const nextArea = QUESTION_AREAS[currentTab];
-        if (isFixedCostsArea(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+        if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+        if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
+      }
+    } else if (isAnalyticalConsumablesAreaLocal(area)) {
+      if (direction > 0 && analyticalConsumablesSubTab < ANALYTICAL_CONSUMABLES_SUBTABS.length - 1) {
+        analyticalConsumablesSubTab += 1;
+      } else if (direction < 0 && analyticalConsumablesSubTab > 0) {
+        analyticalConsumablesSubTab -= 1;
+      } else {
+        currentTab += direction;
+        if (currentTab < 0) currentTab = 0;
+        if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
+        const nextArea = QUESTION_AREAS[currentTab];
+        if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+        if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
       }
     } else {
       currentTab += direction;
       if (currentTab < 0) currentTab = 0;
       if (currentTab >= QUESTION_AREAS.length) currentTab = QUESTION_AREAS.length - 1;
       const nextArea = QUESTION_AREAS[currentTab];
-      if (isFixedCostsArea(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+      if (isFixedCostsAreaLocal(nextArea)) fixedCostsSubTab = direction > 0 ? 0 : FIXED_COST_SUBTABS.length - 1;
+      if (isAnalyticalConsumablesAreaLocal(nextArea)) analyticalConsumablesSubTab = direction > 0 ? 0 : ANALYTICAL_CONSUMABLES_SUBTABS.length - 1;
     }
     renderTabs();
     renderQuestions();
+    restoreCurrentTabAnswers();
     updateSectionTitle();
     updateProgress();
     updateNavButtons();
@@ -269,9 +352,11 @@
   function goToTab(idx) {
     saveCurrentTabAnswers();
     currentTab = idx;
-    if (isFixedCostsArea(QUESTION_AREAS[currentTab])) fixedCostsSubTab = 0;
+    if (isFixedCostsAreaLocal(QUESTION_AREAS[currentTab])) fixedCostsSubTab = 0;
+    if (isAnalyticalConsumablesAreaLocal(QUESTION_AREAS[currentTab])) analyticalConsumablesSubTab = 0;
     renderTabs();
     renderQuestions();
+    restoreCurrentTabAnswers();
     updateSectionTitle();
     updateProgress();
     updateNavButtons();

@@ -1,47 +1,43 @@
 category,name,price
-Basic Sample Analysis,Vortex mixer,300
-Basic Sample Analysis,Microcentrifuge,2350
-Basic Sample Analysis,Bench centrifuge (nonrefrigerated),4000
-Basic Sample Analysis,Ultrasonic bath,900
-Basic Sample Analysis,Water bath,475
-Basic Sample Analysis,Hot plate + magnetic stirrer,375
 Basic Sample Analysis,"Analytical balance (4 decimals, 0.0001 g)",1850
-Basic Sample Analysis,pH meter,375
+Basic Sample Analysis,Basic homogenizer,1650
+Basic Sample Analysis,Bench centrifuge (nonrefrigerated),4000
+Basic Sample Analysis,Block heater (derivatization),800
 Basic Sample Analysis,Conductivity meter,325
+Basic Sample Analysis,"Derivatization kits (dansylation, silylation, etc.)",850
+Basic Sample Analysis,Drying oven,1250
+Basic Sample Analysis,Hot plate + magnetic stirrer,375
+Basic Sample Analysis,Laboratory refrigerator / freezer,2500
+Basic Sample Analysis,Microcentrifuge,2350
+Basic Sample Analysis,Milling / grinding system,6000
+Basic Sample Analysis,pH meter,375
+Basic Sample Analysis,Ultrasonic bath,900
 Basic Sample Analysis,Vacuum filtration set (Büchner + flask + pump),325
 Basic Sample Analysis,Vacuum pump,725
-Basic Sample Analysis,"Syringe filters (PTFE, Nylon, PVDF) / piece",0.60
-Basic Sample Analysis,Manual SPE manifold,1250
-Basic Sample Analysis,"SPE cartridges (C18, SAX, SCX) / piece",3
-Basic Sample Analysis,Basic homogenizer,1650
-Basic Sample Analysis,Drying oven,1250
-Basic Sample Analysis,Laboratory refrigerator / freezer,2500
-Basic Sample Analysis,Milling / grinding system,6000
-Basic Sample Analysis,Block heater (derivatization),800
-Basic Sample Analysis,"Derivatization kits (dansylation, silylation, etc.)",850
-Advanced Sample Analysis,Thermomixer (heating + shaking),3500
+Basic Sample Analysis,Vortex mixer,300
+Basic Sample Analysis,Water bath,475
+Advanced Sample Analysis,Automated SPE system,25000
+Advanced Sample Analysis,Ball mill,6000
 Advanced Sample Analysis,Block heater (derivatization),800
+Advanced Sample Analysis,"Derivatization kits (dansylation, silylation, etc.)",850
+Advanced Sample Analysis,High power tissue homogenizer,3500
+Advanced Sample Analysis,High speed refrigerated centrifuge,8000
+Advanced Sample Analysis,Lyophilizer (freeze dryer),16500
 Advanced Sample Analysis,Nitrogen evaporator (NEvap),5500
 Advanced Sample Analysis,Rotary evaporator,6750
-Advanced Sample Analysis,Lyophilizer (freeze dryer),16500
-Advanced Sample Analysis,Highspeed refrigerated centrifuge,8000
-Advanced Sample Analysis,Automated SPE system,25000
-Advanced Sample Analysis,QuEChERS kits / packet,2
-Advanced Sample Analysis,SPME fibers / piece,115
-Advanced Sample Analysis,Highpower tissue homogenizer,3500
-Advanced Sample Analysis,Ball mill,6000
-Advanced Sample Analysis,LCgrade syringe filters (0.22 μm),1.25
-Advanced Sample Analysis,"Derivatization kits (dansylation, silylation, etc.)",850
-Advanced Sample Analysis,SPE cartridges (LCMS grade) / piece,5
-Advanced Sample Analysis,Centrifugal filtration units / piece,3.5
-Advanced Sample Analysis,Cryogenic sample containers,175
-Advanced Sample Analysis,"Ultramicro balance (5 decimals, 0.00001 g)",5000
+Advanced Sample Analysis,Thermomixer (heating + shaking),3500
+Advanced Sample Analysis,"Ultra micro balance (5 decimals, 0.00001 g)",5000
 Omics Sample Analysis,Automated metabolomics/lipidomics fractionation platform,45000
 Omics Sample Analysis,Automated protein digestion robot,55000
-Omics Sample Analysis,NanoLC system,120000
 Omics Sample Analysis,Highthroughput autosampler,25000
-Omics Sample Analysis,HILIC LC columns,900
-Omics Sample Analysis,C18 lipidomics columns,750
-Omics Sample Analysis,"Protein digestion kits (trypsin, LysC)",300
-Omics Sample Analysis,Isotopelabeled internal standards,325
-Omics Sample Analysis,"Peptide cleanup plates (C18, StageTips)",250
+Omics Sample Analysis,NanoLC system,120000
+Software,Compound Discoverer (untargeted metabolomics),15000
+Software,DesignExpert (StatEase) – Experimental Design (DoE),2500
+Software,"JMP Pro (SAS) – DoE, multivariate, PLS",4000
+Software,MetaboAnalyst (Enterprise) – Omics statistics,6000
+Software,MSDIAL – Untargeted metabolomics/lipidomics,0
+Software,Progenesis QI – LCMS metabolomics/proteomics,18000
+Software,"SIMCA (Sartorius/Umetrics) – PLS, PCA, chemometrics",18000
+Software,Skyline – Targeted proteomics/metabolomics,0
+Software,Spectronaut (Biognosys) – DIA proteomics,12000
+Software,XCMS Online (Enterprise) – Untargeted metabolomics,8000

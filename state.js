@@ -14,13 +14,18 @@
     SOURCES_LOADED: false,
     currentTab: 0,
     fixedCostsSubTab: 0,
+    analyticalConsumablesSubTab: 0,
     ANSWERS: {},
     RECURRING_MIXES: {},
     SOLVENT_LISTS: {},
     FIXED_COST_SUBTABS: [
       { title: 'Section 1: Primary Instrumentation', questionIds: ['equip_basic'] },
       { title: 'Section 2: Column Characteristics', questionIds: ['equip_section2'] },
-      { title: 'Section 3: Auxiliary Equipment', questionIds: ['equip_section3', 'aux_pretreat_basic', 'aux_pretreat_advanced', 'aux_pretreat_omics'] }
+      { title: 'Section 3: Auxiliary Equipment', questionIds: ['equip_section3', 'aux_pretreat_basic', 'aux_pretreat_advanced', 'aux_pretreat_omics', 'aux_pretreat_software'] }
+    ],
+    ANALYTICAL_CONSUMABLES_SUBTABS: [
+      { title: 'Section 1: Mobile phase', questionIds: ['econ_rec1'] },
+      { title: 'Section 2: Sample pretreatment', questionIds: ['sample_pretreat_solvent', 'sample_pretreat_reagent', 'sample_pretreat_materials'] }
     ],
     SECTION_GUIDANCE: {
       'Analytical Performance': {
@@ -139,6 +144,11 @@
       set(v) { state.fixedCostsSubTab = v; },
       configurable: true
     },
+    analyticalConsumablesSubTab: {
+      get() { return state.analyticalConsumablesSubTab; },
+      set(v) { state.analyticalConsumablesSubTab = v; },
+      configurable: true
+    },
     ANSWERS: {
       get() { return state.ANSWERS; },
       set(v) { state.ANSWERS = v; },
@@ -157,6 +167,11 @@
     FIXED_COST_SUBTABS: {
       get() { return state.FIXED_COST_SUBTABS; },
       set(v) { state.FIXED_COST_SUBTABS = v; },
+      configurable: true
+    },
+    ANALYTICAL_CONSUMABLES_SUBTABS: {
+      get() { return state.ANALYTICAL_CONSUMABLES_SUBTABS; },
+      set(v) { state.ANALYTICAL_CONSUMABLES_SUBTABS = v; },
       configurable: true
     },
     SECTION_GUIDANCE: {
