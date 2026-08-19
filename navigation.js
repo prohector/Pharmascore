@@ -64,10 +64,10 @@
         const nameEl = document.getElementById(ids.nameId);
         const totalEl = document.getElementById(ids.totalId);
         if (typeEl) ANSWERS[ids.typeId] = typeEl.value;
-        if (nameEl) ANSWERS[ids.nameId] = nameEl.value;
+        if (nameEl) ANSWERS[ids.nameId] = nameEl.value === '__other__' ? (nameEl.dataset.otherName || '') : nameEl.value;
         const selectedOption = nameEl && nameEl.selectedOptions ? nameEl.selectedOptions[0] : null;
         if (selectedOption) {
-          ANSWERS[q.id + '_name'] = selectedOption.value;
+          ANSWERS[q.id + '_name'] = selectedOption.value === '__other__' ? (nameEl.dataset.otherName || '') : selectedOption.value;
           ANSWERS[q.id] = String(Number(selectedOption.getAttribute('data-price') || 0));
           if (totalEl) totalEl.value = ANSWERS[q.id];
           ANSWERS[q.id + '_total'] = ANSWERS[q.id];
@@ -93,7 +93,7 @@
         const totalEl = document.getElementById(q.id + '_total');
         const mix = getRecurringMix(q.id);
         if (columnTypeEl) ANSWERS[ids.columnTypeId] = columnTypeEl.value;
-        if (columnNameEl) ANSWERS[ids.columnNameId] = columnNameEl.value;
+        if (columnNameEl) ANSWERS[ids.columnNameId] = columnNameEl.value === '__other__' ? (columnNameEl.dataset.otherName || '') : columnNameEl.value;
         if (runEl) ANSWERS[q.id + '_run'] = runEl.value;
         if (flowEl) ANSWERS[q.id + '_flow'] = flowEl.value;
         const normalPhaseSolvents = mix.normalPhaseSolvents || [];
@@ -104,6 +104,11 @@
         ANSWERS[q.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reversePhaseSolvents);
         ANSWERS[q.id + '_solvent_entries'] = JSON.stringify(combinedSolvents);
         ANSWERS[q.id + '_buffer_entries'] = JSON.stringify(mix.buffers || []);
+        ANSWERS[q.id + '_modifier_entries'] = JSON.stringify(mix.modifiers || []);
+        ANSWERS[q.id + '_gradient_rows'] = JSON.stringify(mix.gradientRows || []);
+        ANSWERS[q.id + '_gradient_mode'] = mix.gradientMode || 'isocratic';
+        const gradientFlowEl = document.getElementById(ids.gradientFlowId);
+        if (gradientFlowEl) ANSWERS[q.id + '_gradient_flow'] = gradientFlowEl.value;
         if (totalEl) ANSWERS[q.id] = totalEl.value;
         if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
         return;
@@ -186,7 +191,7 @@
           });
         }
         if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
-        if (isSamplePretreatment && typeof window.updateEquipmentChecklistTotal === 'function') {
+        if (typeof window.updateEquipmentChecklistTotal === 'function') {
           window.updateEquipmentChecklistTotal(q.id);
         }
         return;
@@ -220,11 +225,16 @@
         mix.normalPhaseSolvents = savedNormal.length ? savedNormal : (legacySolvents.length ? legacySolvents : []);
         mix.reversePhaseSolvents = savedReverse.length ? savedReverse : [];
         mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
+        mix.modifiers = parseRecurringEntries(ANSWERS[q.id + '_modifier_entries']);
+        const savedGradientRows = parseRecurringEntries(ANSWERS[q.id + '_gradient_rows']);
+        if (savedGradientRows.length) mix.gradientRows = savedGradientRows;
+        mix.gradientMode = ANSWERS[q.id + '_gradient_mode'] === 'gradient' ? 'gradient' : 'isocratic';
         mix.solvents = [...mix.normalPhaseSolvents, ...mix.reversePhaseSolvents];
         const columnTypeEl = document.getElementById(ids.columnTypeId);
         const columnNameEl = document.getElementById(ids.columnNameId);
         const runEl = document.getElementById(q.id + '_run');
         const flowEl = document.getElementById(q.id + '_flow');
+        const gradientFlowEl = document.getElementById(ids.gradientFlowId);
         const totalEl = document.getElementById(q.id + '_total');
         if (columnTypeEl && ANSWERS[ids.columnTypeId] !== undefined) {
           columnTypeEl.value = ANSWERS[ids.columnTypeId];
@@ -235,9 +245,14 @@
         }
         if (runEl && ANSWERS[q.id + '_run'] !== undefined) runEl.value = ANSWERS[q.id + '_run'];
         if (flowEl && ANSWERS[q.id + '_flow'] !== undefined) flowEl.value = ANSWERS[q.id + '_flow'];
+        if (gradientFlowEl && ANSWERS[q.id + '_gradient_flow'] !== undefined) gradientFlowEl.value = ANSWERS[q.id + '_gradient_flow'];
         renderRecurringList(q.id, 'normal_phase_solvent');
         renderRecurringList(q.id, 'reverse_phase_solvent');
         renderRecurringList(q.id, 'buffer');
+        renderRecurringList(q.id, 'modifier');
+        if (typeof window.applyRecurringModeVisibility === 'function') {
+          window.applyRecurringModeVisibility(q.id, document.getElementById(`${q.id}_calculator`));
+        }
         if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
         updateRecurringCostTotal(q.id);
         return;

@@ -6,6 +6,9 @@
 	<title>PharmaScore Sustainability Assessment</title>
 	<!-- External Stylesheet -->
 	<link rel="stylesheet" href="assets/style.css?v=20260815b">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
 
 	   <script type="module">
 	   import { lookupChemicalPrice } from './api.js';
@@ -101,7 +104,6 @@
 	<!-- Results Section -->
 	   <section id="results-section" class="hidden">
 		   <h3>Assessment Results</h3>
-	  <div id="results-price-summary" class="results-price-summary"></div>
 		  <div id="results-graphic"></div>
 		  <div id="debug-scores"></div>
 		   <button id="retake-btn" type="button" class="btn-retake">Retake Assessment</button>

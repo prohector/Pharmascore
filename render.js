@@ -80,6 +80,15 @@
     }
     if (stepsEl) {
       stepsEl.innerHTML = guidance.steps.map(step => `<li>${step}</li>`).join('');
+      if (typeof window.renderMathInElement === 'function') {
+        window.renderMathInElement(stepsEl, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false
+        });
+      }
     }
   }
 
@@ -345,6 +354,20 @@
       .replace(/\bml\b/gi, 'mL');
   }
 
+  function getQuestionDisplayText(q) {
+    if (q && (q.id === 'perf1' || q.id === 'perf17')) {
+      const label = q.id === 'perf17' ? 'Enter reliable detection limit in matrix' : 'Enter method LOQ';
+      const unit = ANALYSIS_MODE === 'advanced' ? 'ng/mL' : 'µg/mL';
+      return `${label} (${unit})`;
+    }
+    return q && (q.text || q.id) || '';
+  }
+
+  function getQuestionDisplayUnit(q) {
+    if (q && (q.id === 'perf1' || q.id === 'perf17')) return ANALYSIS_MODE === 'advanced' ? 'ng/mL' : 'µg/mL';
+    return q ? q.unit : '';
+  }
+
   function renderSimpleSelect(selectId, options, placeholder, valueField = 'value', labelField = 'label') {
     const optionElements = options.map(opt => {
       const val = opt[valueField] !== undefined ? opt[valueField] : opt;
@@ -392,13 +415,82 @@
     };
   }
 
+  function getOtherLookupIds(id) {
+    return {
+      wrapId: `${id}_other_lookup`,
+      nameId: `${id}_other_name`,
+      queryId: `${id}_other_query`,
+      priceId: `${id}_other_price`,
+      messageId: `${id}_other_message`
+    };
+  }
+
+  function renderOtherLookupControls(id, unit = 'g') {
+    const ids = getOtherLookupIds(id);
+    return `
+      <div id="${ids.wrapId}" class="other-lookup hidden">
+        <label for="${ids.nameId}" class="input-label-small">Name</label>
+        <input id="${ids.nameId}" type="text" class="form-input" placeholder="Enter a chemical or item name">
+        <div class="other-lookup-actions">
+          <span class="input-label-small">Price basis: per ${unit === 'item' ? 'item' : unit === 'ml' ? 'milliliter' : 'gram'}</span>
+          <button id="${ids.queryId}" type="button" class="recurring-add-btn">Query</button>
+        </div>
+        <label for="${ids.priceId}" class="input-label-small">Price (EUR)</label>
+        <input id="${ids.priceId}" type="number" min="0" step="any" class="form-input hidden" placeholder="Enter or edit the price">
+        <div id="${ids.messageId}" class="other-lookup-message" aria-live="polite"></div>
+      </div>`;
+  }
+
+  function setOtherLookupVisibility(id, visible) {
+    const wrap = document.getElementById(getOtherLookupIds(id).wrapId);
+    if (wrap) wrap.classList.toggle('hidden', !visible);
+  }
+
+  function setupOtherLookup(id, unit, questionText, onSuccess) {
+    const ids = getOtherLookupIds(id);
+    const query = document.getElementById(ids.queryId);
+    if (!query) return;
+    query.addEventListener('click', async () => {
+      const nameEl = document.getElementById(ids.nameId);
+      const priceEl = document.getElementById(ids.priceId);
+      const messageEl = document.getElementById(ids.messageId);
+      const name = nameEl ? nameEl.value.trim() : '';
+      if (priceEl) priceEl.classList.remove('hidden');
+      if (!name) {
+        if (messageEl) messageEl.textContent = 'Enter a name before querying.';
+        return;
+      }
+      query.disabled = true;
+      if (messageEl) messageEl.textContent = 'Querying an AI price estimate...';
+      const result = await window.lookupChemicalPrice(name, 'US', unit, questionText);
+      query.disabled = false;
+      if (!result.success) {
+        if (priceEl) priceEl.value = '';
+        if (messageEl) messageEl.textContent = result.error || 'No reliable estimate was found.';
+        return;
+      }
+      if (priceEl) priceEl.value = String(result.price);
+      if (messageEl) messageEl.textContent = `${result.disclaimer || 'AI-estimated price. Verify before relying on it.'} Confidence: ${result.confidence || 'low'}.`;
+      onSuccess({ name, unit, price: Number(result.price), disclaimer: result.disclaimer || 'AI-estimated price. Verify before relying on it.' });
+    });
+    const priceEl = document.getElementById(ids.priceId);
+    if (priceEl) {
+      priceEl.addEventListener('input', () => onSuccess({
+        name: document.getElementById(ids.nameId)?.value.trim() || '',
+        unit,
+        price: Number(priceEl.value),
+        disclaimer: ''
+      }));
+    }
+  }
+
   function populateInstrumentNames(questionId, selectedType, ids = getEquipmentDropdownIds(questionId)) {
     const nameEl = document.getElementById(ids.nameId);
     if (!nameEl) return;
 
     const filtered = (Array.isArray(INSTRUMENT_OPTIONS) ? INSTRUMENT_OPTIONS : []).filter(inst => String(inst.type || 'Other') === String(selectedType));
     const currentValue = nameEl.value;
-    nameEl.innerHTML = '<option value="">Select instrument...</option>' + filtered.map(inst => `<option value="${String(inst.name).replace(/"/g, '&quot;')}" data-price="${Number(inst.price || 0)}">${inst.name}</option>`).join('');
+    nameEl.innerHTML = '<option value="">Select instrument...</option>' + filtered.map(inst => `<option value="${String(inst.name).replace(/"/g, '&quot;')}" data-price="${Number(inst.price || 0)}">${inst.name}</option>`).join('') + '<option value="__other__">Other</option>';
 
     if (filtered.length && currentValue && filtered.some(inst => String(inst.name) === String(currentValue))) {
       nameEl.value = currentValue;
@@ -418,12 +510,19 @@
     const selectedType = typeEl.value;
     const selectedName = nameEl.value;
     const selected = (Array.isArray(INSTRUMENT_OPTIONS) ? INSTRUMENT_OPTIONS : []).find(inst => String(inst.type || 'Other') === String(selectedType) && String(inst.name) === String(selectedName));
-    const price = Number(selected && selected.price ? selected.price : 0) || 0;
+    const otherPrice = Number(document.getElementById(getOtherLookupIds(questionId).priceId)?.value || 0);
+    const price = selectedName === '__other__' ? otherPrice : (Number(selected && selected.price ? selected.price : 0) || 0);
+
+    if (selectedName === '__other__' && (!Number.isFinite(price) || price <= 0)) {
+      delete ANSWERS[questionId];
+      delete ANSWERS[questionId + '_total'];
+      return;
+    }
 
     if (totalEl) totalEl.value = String(price.toFixed(2));
     ANSWERS[questionId] = String(price);
     ANSWERS[questionId + '_total'] = String(price);
-    ANSWERS[questionId + '_name'] = selectedName || '';
+    ANSWERS[questionId + '_name'] = selectedName === '__other__' ? (nameEl.dataset.otherName || '') : (selectedName || '');
     ANSWERS[questionId + '_type'] = selectedType || '';
   }
 
@@ -431,6 +530,7 @@
     return {
       runId: `${questionId}_run`,
       flowId: `${questionId}_flow`,
+      gradientFlowId: `${questionId}_gradient_flow`,
       normalPhaseSelectId: `${questionId}_normal_phase_select`,
       normalPhasePctId: `${questionId}_normal_phase_pct`,
       reversePhaseSelectId: `${questionId}_reverse_phase_select`,
@@ -466,7 +566,7 @@
       <optgroup label="${String(groupName).replace(/"/g, '&quot;')}">
         ${groupItems.map(item => `<option value="${String(item.name).replace(/"/g, '&quot;')}" data-price="${Number(item.price || 0)}">${String(item.name)}</option>`).join('')}
       </optgroup>
-    `).join('');
+    `).join('') + '<option value="__other__">Other</option>';
   }
 
   function getRecurringMix(questionId) {
@@ -591,6 +691,7 @@
           <th>From time</th>
           <th>To time</th>
           ${assignments.map(assignment => `<th>${assignment.entry.name}</th>`).join('')}
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -604,6 +705,7 @@
               const readOnly = letter === 'A' && assignments.some(item => item.letter === 'A' && item.entry && /water/i.test(String(item.entry.name || '')));
               return `<td><input type="number" min="0" max="100" step="any" data-row-index="${rowIndex}" data-field="${letter}" value="${value}" ${readOnly ? 'readonly' : ''}></td>`;
             }).join('')}
+            <td><button type="button" class="recurring-remove-btn" data-gradient-remove-row="${rowIndex}">Remove</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -622,11 +724,67 @@
           rows[rowIndex].values[field] = Number(target.value || 0);
         }
         mix.gradientRows = rows;
+        updateRecurringCostTotal(questionId);
       });
     });
 
+    tableEl.querySelectorAll('[data-gradient-remove-row]').forEach(button => {
+      button.addEventListener('click', () => {
+        const rowIndex = Number(button.dataset.gradientRemoveRow);
+        if (rows.length <= 1) return;
+        rows.splice(rowIndex, 1);
+        mix.gradientRows = rows;
+        renderGradientTable(questionId);
+        updateRecurringCostTotal(questionId);
+      });
+    });
+
+    const addRowButton = document.getElementById(`${ids.gradientTableWrapId}_add_row`);
+    if (addRowButton) {
+      addRowButton.onclick = () => {
+        const previous = rows[rows.length - 1] || { from: 0, to: 10, values: {} };
+        const nextFrom = Number(previous.to || previous.from || 0);
+        const nextTo = nextFrom + 10;
+        rows.push({ from: nextFrom, to: nextTo, values: Object.fromEntries(assignments.map(item => [item.letter, Number(previous.values?.[item.letter] ?? item.entry.percent ?? 0)])) });
+        mix.gradientRows = rows;
+        renderGradientTable(questionId);
+        updateRecurringCostTotal(questionId);
+      };
+    }
+
     const mode = mix.gradientMode || 'isocratic';
     tableWrap.classList.toggle('hidden', mode !== 'gradient');
+  }
+
+  function getGradientCostBreakdown(questionId, flowRate) {
+    const mix = getRecurringMix(questionId);
+    const rows = Array.isArray(mix.gradientRows) ? mix.gradientRows : [];
+    const solventEntries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
+    const water = solventEntries.find(entry => /water/i.test(String(entry.name || '')));
+    const breakdown = [];
+    rows.forEach((row, index) => {
+      const duration = Math.max(0, Number(row.to || 0) - Number(row.from || 0));
+      if (!duration || !flowRate) return;
+      const volumeMl = duration * flowRate;
+      const values = row.values || {};
+      solventEntries.forEach(entry => {
+        const percent = Number(values[entry.gradientLetter] ?? entry.percent ?? 0);
+        const cost = volumeMl * (percent / 100) * Number(entry.price || 0);
+        breakdown.push({ segment: index + 1, component: entry.name, basis: 'mL', durationMin: duration, volumeMl, concentration: percent, costEUR: Number(cost.toFixed(6)) });
+      });
+      const waterShare = water ? Number(values.A ?? water.percent ?? 0) / 100 : 1;
+      const aqueousVolumeL = (volumeMl * waterShare) / 1000;
+      [...(mix.buffers || []), ...(mix.modifiers || [])].forEach(entry => {
+        const mgPerL = Number(entry.amountMgPerL ?? entry.percent ?? 0);
+        const cost = aqueousVolumeL * mgPerL / 1000 * Number(entry.price || 0);
+        breakdown.push({ segment: index + 1, component: entry.name, basis: 'mg/L in aqueous phase', durationMin: duration, volumeMl, concentration: mgPerL, costEUR: Number(cost.toFixed(6)) });
+      });
+    });
+    return breakdown;
+  }
+
+  function calculateGradientCost(questionId, flowRate) {
+    return getGradientCostBreakdown(questionId, flowRate).reduce((sum, item) => sum + item.costEUR, 0);
   }
 
   function parseRecurringEntries(rawValue) {
@@ -656,15 +814,18 @@
     else entries = mix.buffers || [];
 
     if (!entries.length) {
-      listEl.innerHTML = '<div class="recurring-cost-empty">No entries yet.</div>';
+      listEl.innerHTML = '';
+      const listBlock = listEl.closest('.recurring-cost-list-block');
+      if (listBlock) listBlock.classList.add('hidden');
       return;
     }
 
+    const listBlock = listEl.closest('.recurring-cost-list-block');
+    if (listBlock) listBlock.classList.remove('hidden');
     const isGradient = mix.gradientMode === 'gradient';
     listEl.innerHTML = entries.map((entry, index) => `
       <div class="recurring-cost-entry\">
-        <span>${isGradient ? entry.name : (entry.gradientLetter ? `${entry.gradientLetter} - ` : '') + entry.name} ${!isGradient ? `(${entry.percent}%)` : ''}</span>
-        <span>${Number(entry.cost || 0).toFixed(2)} EUR</span>
+        <span>${isGradient ? entry.name : (entry.gradientLetter ? `${entry.gradientLetter} - ` : '') + entry.name} ${!isGradient ? `(${entry.percent}%)` : ''}${entry.disclaimer ? ` <small>${entry.disclaimer}</small>` : ''}</span>
         <button type="button" class="recurring-remove-btn" data-question-id="${questionId}" data-category="${category}" data-index="${index}">Remove</button>
       </div>
     `).join('');
@@ -719,6 +880,7 @@
   function updateEquipmentChecklistTotal(questionId) {
     const list = document.getElementById(questionId + '_equipment_list');
     const totalEl = document.getElementById(questionId + '_total');
+    const scoreEl = document.getElementById(questionId + '_score');
     if (!list || !totalEl) return;
     const isSamplePretreatment = isSamplePretreatmentChecklist(questionId);
     const checked = Array.from(list.querySelectorAll('input[type="checkbox"]:checked'));
@@ -738,12 +900,23 @@
 
     if (isSamplePretreatment && (checked.length === 0 || hasMissingAmounts)) {
       totalEl.value = '';
+      if (scoreEl) scoreEl.textContent = '0';
       delete ANSWERS[questionId];
       delete ANSWERS[questionId + '_total'];
       return;
     }
 
     totalEl.value = String(total.toFixed(2));
+    const question = QUESTION_AREAS.flatMap(area => area.questions || []).find(item => item.id === questionId);
+    let score = 0;
+    try {
+      const params = question && typeof question.params === 'object' ? question.params : JSON.parse((question && question.params) || '{}');
+      const matchingRange = (params.ranges || []).filter(range => total <= Number(range.max)).sort((a, b) => Number(b.score) - Number(a.score))[0];
+      score = matchingRange ? Number(matchingRange.score) : 0;
+    } catch {
+      score = 0;
+    }
+    if (scoreEl) scoreEl.textContent = String(score);
     ANSWERS[questionId] = String(total.toFixed(2));
     ANSWERS[questionId + '_total'] = String(total.toFixed(2));
   }
@@ -768,8 +941,16 @@
     }
 
     const selectedOption = selectEl.selectedOptions && selectEl.selectedOptions[0] ? selectEl.selectedOptions[0] : null;
-    const name = selectedOption ? (selectedOption.textContent || selectedOption.value) : selectEl.value;
-    const price = Number(selectedOption ? (selectedOption.getAttribute('data-price') || 0) : 0) || 0;
+    const isOther = selectEl.value === '__other__';
+    const otherIds = getOtherLookupIds(`${questionId}_${category}`);
+    const otherName = document.getElementById(otherIds.nameId)?.value.trim() || '';
+    const otherPrice = Number(document.getElementById(otherIds.priceId)?.value || 0);
+    const name = isOther ? otherName : (selectedOption ? (selectedOption.textContent || selectedOption.value) : selectEl.value);
+    const price = isOther ? otherPrice : (Number(selectedOption ? (selectedOption.getAttribute('data-price') || 0) : 0) || 0);
+    if (isOther && (!name || !Number.isFinite(price) || price < 0)) {
+      showRecurringCostMessage(questionId, 'Query a price for the Other item before adding it.', 'error');
+      return;
+    }
     const allSolventEntries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
     const duplicateExists = allSolventEntries.some(entry => normalizeRecurringEntryName(entry.name) === normalizeRecurringEntryName(name));
     if (duplicateExists && (category === 'normal_phase_solvent' || category === 'reverse_phase_solvent')) {
@@ -792,9 +973,13 @@
       id: `${category}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       name,
       percent,
+      amountMgPerL: (category === 'buffer' || category === 'modifier') ? percent : 0,
       price,
+      disclaimer: isOther ? (document.getElementById(otherIds.messageId)?.textContent || 'AI-estimated price. Verify before relying on it.') : '',
       gradientLetter: '',
-      cost: (category === 'buffer' ? price * (percent / 100) * waterShare : price * (percent / 100))
+      cost: (category === 'buffer' || category === 'modifier')
+        ? price * percent * waterShare / 1000000
+        : price * (percent / 100)
     };
 
     if (category === 'normal_phase_solvent') {
@@ -824,9 +1009,25 @@
     const runTime = Number(runEl && runEl.value !== '' ? runEl.value : 0) || 0;
     const flowRate = Number(flowEl && flowEl.value !== '' ? flowEl.value : 0) || 0;
     const entries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || []), ...(mix.modifiers || []), ...(mix.buffers || [])];
-    const total = entries.reduce((sum, entry) => sum + Number(entry.cost || 0), 0) * runTime * flowRate;
+    const waterEntry = [...(mix.reversePhaseSolvents || [])].find(entry => /water/i.test(String(entry.name || '')));
+    const waterShare = waterEntry ? Number(waterEntry.percent || 0) / 100 : 1;
+    const solventCostPerMl = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])]
+      .reduce((sum, entry) => sum + Number(entry.cost || 0), 0);
+    const aqueousAdditiveCostPerMl = [...(mix.buffers || []), ...(mix.modifiers || [])]
+      .reduce((sum, entry) => sum + (Number(entry.price || 0) * Number(entry.amountMgPerL ?? entry.percent ?? 0) * waterShare / 1000000), 0);
+    let total = (solventCostPerMl + aqueousAdditiveCostPerMl) * runTime * flowRate;
+    if (mix.gradientMode === 'gradient') {
+      const gradientFlow = Number(document.getElementById(ids.gradientFlowId)?.value || 0) || 0;
+      total = calculateGradientCost(questionId, gradientFlow);
+    }
 
     if (totalEl) totalEl.value = Number.isFinite(total) ? String(total.toFixed(2)) : '0';
+    if (mix.gradientMode === 'gradient') {
+      console.groupCollapsed(`[PharmaScore] Gradient cost calculation: ${questionId}`);
+      console.table(getGradientCostBreakdown(questionId, Number(document.getElementById(ids.gradientFlowId)?.value || 0) || 0));
+      console.log('Gradient total (EUR):', total);
+      console.groupEnd();
+    }
     ANSWERS[questionId] = totalEl && totalEl.value ? totalEl.value : '';
     ANSWERS[questionId + '_total'] = totalEl && totalEl.value ? totalEl.value : '';
   }
@@ -837,7 +1038,7 @@
 
     const filtered = (Array.isArray(COLUMN_OPTIONS) ? COLUMN_OPTIONS : []).filter(column => String(column.type) === String(selectedType));
     const currentValue = nameEl.value;
-    nameEl.innerHTML = '<option value="">Select column name...</option>' + filtered.map(column => `<option value="${String(column.fullName).replace(/"/g, '&quot;')}" data-price="${Number(column.price || 0)}">${column.fullName}</option>`).join('');
+    nameEl.innerHTML = '<option value="">Select column name...</option>' + filtered.map(column => `<option value="${String(column.fullName).replace(/"/g, '&quot;')}" data-price="${Number(column.price || 0)}">${column.fullName}</option>`).join('') + '<option value="__other__">Other</option>';
 
     if (filtered.length && currentValue && filtered.some(column => String(column.fullName) === String(currentValue))) {
       nameEl.value = currentValue;
@@ -857,11 +1058,19 @@
     const selectedType = typeEl.value;
     const selectedName = nameEl.value;
     const selected = (Array.isArray(COLUMN_OPTIONS) ? COLUMN_OPTIONS : []).find(column => String(column.type) === String(selectedType) && String(column.fullName) === String(selectedName));
-    const price = Number(selected && selected.price ? selected.price : 0) || 0;
+    const otherPrice = Number(document.getElementById(getOtherLookupIds(questionId).priceId)?.value || 0);
+    const price = selectedName === '__other__' ? otherPrice : (Number(selected && selected.price ? selected.price : 0) || 0);
+
+    if (selectedName === '__other__' && (!Number.isFinite(price) || price <= 0)) {
+      delete ANSWERS[questionId];
+      delete ANSWERS[questionId + '_total'];
+      return;
+    }
 
     if (totalEl) totalEl.value = String(price.toFixed(2));
     ANSWERS[questionId] = String(price);
     ANSWERS[questionId + '_total'] = String(price);
+    ANSWERS[questionId + '_name'] = selectedName === '__other__' ? (nameEl.dataset.otherName || '') : (selectedName || '');
   }
 
   function renderQuestions() {
@@ -874,6 +1083,7 @@
 
     questionsToRender.forEach(q => {
       if (q.type === 'label') {
+        if (q.id === 'equip_section3') return;
         const labelIconKey = iconKeyFromText(q.id || q.text || 'section');
         form.innerHTML += `<div class="form-label-block"><span class="label-icon-slot" data-icon-key="${labelIconKey}" aria-hidden="true"></span><div class="form-label-block-copy">${q.text || ''}</div></div>`;
         return;
@@ -914,7 +1124,7 @@
           </div>
         `;
       } else if (q.type === 'number') {
-        const unitLabel = formatUnitLabel(q.unit);
+        const unitLabel = formatUnitLabel(getQuestionDisplayUnit(q));
         input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${unitLabel}</span></div>`;
       } else if (q.type === 'text') {
         input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
@@ -939,9 +1149,10 @@
                 </select>
               </div>
             </div>
+            ${renderOtherLookupControls(q.id, 'item')}
             <div class="chem-lookup-total-section">
               <label for="${ids.totalId}" class="input-label-small">Selected primary instrumentation score</label>
-              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
+              <input id="${ids.totalId}" name="${ids.totalId}" type="hidden">
             </div>
           </div>
         `;
@@ -960,7 +1171,6 @@
             <label class="equipment-check-item" for="${optionId}">
               <input id="${optionId}" type="checkbox" value="${String(item.name).replace(/"/g, '&quot;')}" data-price="${Number(item.price || 0)}" data-amount-input-id="${amountInputId}">
               <span class="equipment-check-name">${String(item.name)}</span>
-              <span class="equipment-check-price">(${Number(item.price || 0).toFixed(4)} EUR/${unit || 'unit'})</span>
             </label>
             ${isSamplePretreatment ? `
             <div id="${amountRowId}" class="sample-pretreat-amount-row hidden">
@@ -969,7 +1179,7 @@
             </div>` : ''}
           </div>`;
         }).join('') : '<div class="equipment-empty">No auxiliary equipment loaded for this section.</div>';
-        const isFirstChecklistOpen = q.id === 'aux_pretreat_basic' || q.id === 'sample_pretreat_solvent';
+        const isFirstChecklistOpen = q.id === 'aux_pretreat_basic';
         input = `
           <div class="equipment-checklist-wrap">
             <button type="button" class="equipment-checklist-toggle ${isFirstChecklistOpen ? 'is-open' : ''}" data-target="${q.id}_equipment_panel" aria-expanded="${isFirstChecklistOpen ? 'true' : 'false'}">
@@ -979,8 +1189,9 @@
               <div id="${q.id}_equipment_list" class="equipment-checklist-list">${equipmentList}</div>
               <div id="${q.id}_equipment_empty" class="equipment-empty hidden">No instruments were loaded from the auxiliary equipment CSV.</div>
               <div class="chem-lookup-total-section">
-                <label for="${q.id}_total" class="input-label-small">${isSamplePretreatment ? 'Total sample pretreatment score' : 'Total auxiliary equipment score'}</label>
-                <input id="${q.id}_total" name="${q.id}_total" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
+                <label for="${q.id}_score" class="input-label-small">${isSamplePretreatment ? 'Total sample pretreatment score' : 'Total auxiliary equipment score'}</label>
+                <output id="${q.id}_score" class="form-input form-input-readonly">0</output>
+                <input id="${q.id}_total" name="${q.id}_total" type="hidden">
               </div>
             </div>
           </div>
@@ -1001,9 +1212,10 @@
                 </select>
               </div>
             </div>
+            ${renderOtherLookupControls(q.id, 'item')}
             <div class="chem-lookup-total-section">
               <label for="${ids.totalId}" class="input-label-small">Total fixed column score</label>
-              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
+              <input id="${ids.totalId}" name="${ids.totalId}" type="hidden">
             </div>
           </div>
         `;
@@ -1058,6 +1270,7 @@
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="normal_phase_solvent">Add</button>
               </div>
             </div>
+            ${renderOtherLookupControls(`${q.id}_normal_phase_solvent`, 'ml')}
 
             <div class="recurring-cost-grid">
               <div class="recurring-cost-field">
@@ -1075,6 +1288,7 @@
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="reverse_phase_solvent">Add</button>
               </div>
             </div>
+            ${renderOtherLookupControls(`${q.id}_reverse_phase_solvent`, 'ml')}
 
             <div class="recurring-cost-grid">
               <div class="recurring-cost-field">
@@ -1085,13 +1299,14 @@
                 </select>
               </div>
               <div class="recurring-cost-field ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}">
-                <label for="${ids.bufferPctId}" class="input-label-small">Percent (g/L or mL/L)</label>
+                <label for="${ids.bufferPctId}" class="input-label-small">Amount (mg/L in water)</label>
                 <input id="${ids.bufferPctId}" name="${ids.bufferPctId}" type="number" min="0" max="100" step="any" class="form-input" placeholder="10" data-gradient-percent-field="true">
               </div>
               <div class="recurring-cost-action">
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="buffer">Add</button>
               </div>
             </div>
+            ${renderOtherLookupControls(`${q.id}_buffer`, 'ml')}
 
             <div class="recurring-cost-grid">
               <div class="recurring-cost-field">
@@ -1102,13 +1317,14 @@
                 </select>
               </div>
               <div class="recurring-cost-field ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}">
-                <label for="${ids.modifierPctId}" class="input-label-small">Percent (g/L or mL/L)</label>
+                <label for="${ids.modifierPctId}" class="input-label-small">Amount (mg/L in water)</label>
                 <input id="${ids.modifierPctId}" name="${ids.modifierPctId}" type="number" min="0" max="100" step="any" class="form-input" placeholder="0.1" data-gradient-percent-field="true">
               </div>
               <div class="recurring-cost-action">
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="modifier">Add</button>
               </div>
             </div>
+            ${renderOtherLookupControls(`${q.id}_modifier`, 'ml')}
 
             <div class="recurring-cost-mix-sections">
               <div class="recurring-cost-list-block">
@@ -1131,12 +1347,18 @@
 
             <div id="${ids.gradientTableWrapId}" class="recurring-gradient-table-wrap hidden">
               <h4>Gradient profile</h4>
+              <div class="recurring-cost-field">
+                <label for="${ids.gradientFlowId}" class="input-label-small">Flow rate (mL/min)</label>
+                <input id="${ids.gradientFlowId}" name="${ids.gradientFlowId}" type="number" min="0" step="any" class="form-input" placeholder="e.g. 1.2">
+              </div>
               <table id="${ids.gradientTableId}" class="recurring-gradient-table"></table>
+              <button type="button" id="${ids.gradientTableWrapId}_add_row" class="recurring-add-btn">Add time row</button>
+              <button type="button" id="${ids.gradientTableWrapId}_calculate" class="recurring-add-btn">Calculate gradient cost</button>
             </div>
 
             <div class="chem-lookup-total-section">
               <label for="${ids.totalId}" class="input-label-small">Total analytical consumables score</label>
-              <input id="${ids.totalId}" name="${ids.totalId}" type="number" min="0" step="any" readonly placeholder="0" class="form-input form-input-readonly">
+              <input id="${ids.totalId}" name="${ids.totalId}" type="hidden">
             </div>
           </div>
         `;
@@ -1148,7 +1370,7 @@
       if (isConditional && !isVisible) wrapper.classList.add('hidden');
       wrapper.innerHTML = `
         <div class="form-question">
-          <label id="${q.id}_label" for="${q.id}" class="question-label">${q.text || q.id}</label>
+          <label id="${q.id}_label" for="${q.id}" class="question-label">${getQuestionDisplayText(q)}</label>
           ${input}
         </div>
       `;
@@ -1162,6 +1384,15 @@
         const gradientModeEl = document.getElementById(ids.gradientModeId);
         if (runEl) runEl.addEventListener('input', () => updateRecurringCostTotal(q.id));
         if (flowEl) flowEl.addEventListener('input', () => updateRecurringCostTotal(q.id));
+        const gradientFlowEl = document.getElementById(ids.gradientFlowId);
+        if (gradientFlowEl) gradientFlowEl.addEventListener('input', () => updateRecurringCostTotal(q.id));
+        const gradientCalculateButton = document.getElementById(`${ids.gradientTableWrapId}_calculate`);
+        if (gradientCalculateButton) {
+          gradientCalculateButton.addEventListener('click', () => {
+            updateRecurringCostTotal(q.id);
+            showRecurringCostMessage(q.id, 'Gradient cost calculated. See the browser console for the segment breakdown.', 'success');
+          });
+        }
         if (isocraticModeEl) isocraticModeEl.addEventListener('change', () => {
           getRecurringMix(q.id).gradientMode = 'isocratic';
           applyRecurringModeVisibility(q.id, wrapper);
@@ -1170,8 +1401,14 @@
           getRecurringMix(q.id).gradientMode = 'gradient';
           applyRecurringModeVisibility(q.id, wrapper);
         });
-        wrapper.querySelectorAll('.recurring-add-btn').forEach(button => {
+        wrapper.querySelectorAll('.recurring-add-btn[data-category]').forEach(button => {
           button.addEventListener('click', () => addRecurringEntry(q.id, button.dataset.category));
+        });
+        ['normal_phase_solvent', 'reverse_phase_solvent', 'buffer', 'modifier'].forEach(category => {
+          const selectId = category === 'normal_phase_solvent' ? ids.normalPhaseSelectId : category === 'reverse_phase_solvent' ? ids.reversePhaseSelectId : category === 'buffer' ? ids.bufferSelectId : ids.modifierSelectId;
+          const select = document.getElementById(selectId);
+          if (select) select.addEventListener('change', () => setOtherLookupVisibility(`${q.id}_${category}`, select.value === '__other__'));
+          setupOtherLookup(`${q.id}_${category}`, 'ml', q.text || 'Mobile phase component price', () => {});
         });
         renderRecurringList(q.id, 'normal_phase_solvent');
         renderRecurringList(q.id, 'reverse_phase_solvent');
@@ -1191,8 +1428,15 @@
           if (selectedType) populateInstrumentNames(q.id, selectedType, ids);
         }
         if (nameEl) {
-          nameEl.addEventListener('change', () => updateInstrumentDropdownTotal(q.id, ids));
+          nameEl.addEventListener('change', () => {
+            setOtherLookupVisibility(q.id, nameEl.value === '__other__');
+            updateInstrumentDropdownTotal(q.id, ids);
+          });
         }
+        setupOtherLookup(q.id, 'item', q.text || 'Primary instrument price', ({ name }) => {
+          if (nameEl) nameEl.dataset.otherName = name;
+          updateInstrumentDropdownTotal(q.id, ids);
+        });
       }
 
       if (q.type === 'equipment_checklist') {
@@ -1267,7 +1511,14 @@
           if (selectedType) populateColumnNames(q.id, selectedType, ids);
         }
         const nameEl = document.getElementById(ids.columnNameId);
-        if (nameEl) nameEl.addEventListener('change', () => updateColumnSelectorTotal(q.id, ids));
+        if (nameEl) nameEl.addEventListener('change', () => {
+          setOtherLookupVisibility(q.id, nameEl.value === '__other__');
+          updateColumnSelectorTotal(q.id, ids);
+        });
+        setupOtherLookup(q.id, 'item', q.text || 'Column price', ({ name }) => {
+          if (nameEl) nameEl.dataset.otherName = name;
+          updateColumnSelectorTotal(q.id, ids);
+        });
       }
     });
   }
@@ -1487,6 +1738,7 @@
     getEquipmentDropdownIds: { value: getEquipmentDropdownIds, configurable: true },
     getRecurringCostIds: { value: getRecurringCostIds, configurable: true },
     getRecurringMix: { value: getRecurringMix, configurable: true },
+    applyRecurringModeVisibility: { value: applyRecurringModeVisibility, configurable: true },
     parseRecurringEntries: { value: parseRecurringEntries, configurable: true },
     renderRecurringList: { value: renderRecurringList, configurable: true },
     addRecurringEntry: { value: addRecurringEntry, configurable: true },

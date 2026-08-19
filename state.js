@@ -26,8 +26,9 @@
       { title: 'Section 3: Auxiliary Equipment', questionIds: ['equip_section3', 'aux_pretreat_basic', 'aux_pretreat_advanced', 'aux_pretreat_omics', 'aux_pretreat_software'] }
     ],
     ANALYTICAL_PERFORMANCE_SUBTABS: [
-      { title: 'Section 1: Method performance', questionIds: ['perf0', 'perf1', 'perf2', 'perf3', 'perf4', 'perf5', 'perf6', 'perf7', 'perf8', 'perf9', 'perf10', 'perf11', 'perf12'] },
-      { title: 'Section 2: Matrix performance', questionIds: ['sample_analysis_results_heading', 'sample_analysis_results', 'perf13', 'perf14', 'perf15', 'perf17'] }
+      { title: 'System Suitability', questionIds: ['perf8', 'perf9', 'perf10', 'perf2'] },
+      { title: 'Method validation', questionIds: ['perf0', 'perf7', 'perf1', 'perf3', 'perf5', 'perf12'] },
+      { title: 'Matrix performance', questionIds: ['sample_analysis_results_heading', 'sample_analysis_results', 'perf13', 'perf14', 'perf15', 'perf17'] }
     ],
     ANALYTICAL_CONSUMABLES_SUBTABS: [
       { title: 'Section 1: Mobile phase', questionIds: ['econ_rec1'] },
@@ -39,6 +40,8 @@
         steps: [
           'Enter number of analytes ________',
           'Use the same units shown in each question label.',
+          String.raw`$$\text{Matrix Effect (\%)} = \left( \frac{\text{Peak area (post-extraction spiked sample)}}{\text{Peak area (neat standard)}} - 1 \right) \times 100$$`,
+          String.raw`$$\text{Process efficiency (\%)} = \text{matrix recovery} \times \text{matrix effect}.$$`,
           'If you are unsure, check your validation report before entering numbers.',
           'Complete all required items before moving to the next section.'
         ]

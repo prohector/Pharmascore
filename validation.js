@@ -89,7 +89,7 @@
         if (q.type === 'label') continue;
         const wrapper = document.getElementById('question-wrapper-' + q.id);
         if (wrapper && wrapper.classList.contains('hidden')) continue;
-        if (!wrapper && !shouldShowQuestion(q)) continue;
+        if (!wrapper) continue;
         if (!q.required) continue;
         const val = ANSWERS[q.id];
         if (q.type === 'dropdown') {
@@ -134,7 +134,7 @@
             if (q.type === 'label') continue;
             const wrapper = document.getElementById('question-wrapper-' + q.id);
             if (wrapper && wrapper.classList.contains('hidden')) continue;
-            if (!wrapper && !shouldShowQuestion(q)) continue;
+            if (!wrapper) continue;
             if (!q.required) continue;
             const val = ANSWERS[q.id];
             if (q.type === 'dropdown') {

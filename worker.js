@@ -1,278 +1,146 @@
-// Cloudflare Worker: ChemSpace Proxy
+//This is a cloudflare worker
 
-let accessToken = null;
-let tokenExpiry = 0;
-
-async function fetchToken(env) {
-  const apiKey = env.CHEMSPACE_API_KEY;
-  const url = 'https://api.chem-space.com/auth/token';
-  const headers = { Authorization: `Bearer ${apiKey}` };
-  try {
-    const resp = await fetch(url, { method: 'GET', headers });
-    if (!resp.ok) {
-      const msg = await resp.text();
-      throw new Error(`Token fetch failed: ${resp.status} ${msg}`);
-    }
-    const data = await resp.json();
-    accessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000) - 10000; // 10s buffer
-    return accessToken;
-  } catch (err) {
-    accessToken = null;
-    tokenExpiry = 0;
-    throw err;
-  }
-}
-
-async function getToken(env) {
-  if (!accessToken || Date.now() > tokenExpiry) {
-    await fetchToken(env);
-  }
-  return accessToken;
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-  };
-}
-
-function errorResponse(status, message, query = null) {
-  return new Response(
-    JSON.stringify({ success: false, query, message }),
-    { status, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
-  );
-}
-
-async function searchChemSpace(query, token, categories, shipToCountry) {
-  const url = `https://api.chem-space.com/v4/search/text?shipToCountry=${encodeURIComponent(shipToCountry)}&count=10&page=1&categories=${encodeURIComponent(categories)}`;
-  const form = new FormData();
-  form.append('query', query);
-  const headers = {
-    Accept: 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-  // Content-Type is set automatically by FormData
-  const resp = await fetch(url, { method: 'POST', headers, body: form });
-  return resp;
-}
-
-function findCheapest(items, unit) {
-  let min = null;
-  let result = null;
-  let count = items.length;
-  for (const item of items) {
-    if (!item.offers) continue;
-    for (const offer of item.offers) {
-      if (!offer.prices) continue;
-      for (const price of offer.prices) {
-        let value = null;
-        if (unit === 'ml') {
-          // Only consider mL or L
-          if (price.uom === 'ml') {
-            value = price.pack;
-          } else if (price.uom === 'l') {
-            value = price.pack * 1000;
-          } else {
-            continue;
-          }
-          if (!value || value === 0) continue;
-          if (!price.priceUsd || price.priceUsd <= 0) continue;
-          const pricePerMl = price.priceUsd / value;
-          if (!isFinite(pricePerMl) || pricePerMl <= 0) continue;
-          if (min === null || pricePerMl < min) {
-            min = pricePerMl;
-            result = {
-              cheapestPricePerMl: Number(pricePerMl.toFixed(2)),
-              currency: 'USD',
-              vendorName: offer.vendorName,
-              pack: price.pack,
-              uom: price.uom,
-              link: item.link,
-            };
-          }
-        } else {
-          // Default: grams
-          if (price.uom === 'g') {
-            value = price.pack;
-          } else if (price.uom === 'mg') {
-            value = price.pack / 1000;
-          } else if (price.uom === 'kg') {
-            value = price.pack * 1000;
-          } else {
-            continue;
-          }
-          if (!value || value === 0) continue;
-          if (!price.priceUsd || price.priceUsd <= 0) continue;
-          const pricePerGram = price.priceUsd / value;
-          if (!isFinite(pricePerGram) || pricePerGram <= 0) continue;
-          if (min === null || pricePerGram < min) {
-            min = pricePerGram;
-            result = {
-              cheapestPricePerGram: Number(pricePerGram.toFixed(2)),
-              currency: 'USD',
-              vendorName: offer.vendorName,
-              pack: price.pack,
-              uom: price.uom,
-              link: item.link,
-            };
-          }
-        }
-      }
-    }
-  }
-  if (result) result.resultCount = count;
-  return result;
-}
+const MISTRAL_MODEL = 'mistral-small-latest';
+const REQUEST_TIMEOUT_MS = 15000;
+const MAX_IP_QUERIES_PER_MINUTE = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const ipQueryHistory = new Map();
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
+    if (request.method === 'OPTIONS') {
+      return corsResponse(new Response(null, { status: 204 }));
+    }
+
+    if (request.method !== 'POST') {
+      return corsResponse(jsonResponse({ success: false, error: 'Method not allowed' }, 405));
+    }
+
+    let body;
     try {
-      // Handle CORS preflight
-      if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 200, headers: corsHeaders() });
-      }
+      body = await request.json();
+    } catch {
+      return corsResponse(jsonResponse({ success: false, error: 'Invalid request body' }, 400));
+    }
 
+    const name = String(body.name || '').trim();
+    const country = String(body.country || 'US').trim();
+    const unit = ['g', 'ml', 'item'].includes(body.unit) ? body.unit : 'g';
+    const question = String(body.question || '').trim().slice(0, 500);
 
-      const url = new URL(request.url);
-      const query = url.searchParams.get('query');
-      const shipToCountry = url.searchParams.get('shipToCountry');
-      const unit = url.searchParams.get('unit') === 'ml' ? 'ml' : 'g';
-      if (!query) {
-        return errorResponse(400, 'Missing query parameter');
-      }
-      if (!shipToCountry) {
-        return errorResponse(400, 'Missing shipToCountry parameter');
-      }
+    if (!name || name.length > 200) {
+      return corsResponse(jsonResponse({ success: false, error: 'Missing or invalid chemical name' }, 400));
+    }
 
-      let token;
-      try {
-        token = await getToken(env);
-      } catch (err) {
-        return errorResponse(500, 'Failed to fetch ChemSpace token');
-      }
+    const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+    const now = Date.now();
+    const recentQueries = (ipQueryHistory.get(clientIp) || []).filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_MS);
+    if (recentQueries.length >= MAX_IP_QUERIES_PER_MINUTE) {
+      return corsResponse(jsonResponse({
+        success: false,
+        error: 'Please wait before making more price queries. The limit is 5 per minute.',
+        rateLimited: true
+      }, 429));
+    }
+    recentQueries.push(now);
+    ipQueryHistory.set(clientIp, recentQueries);
 
-      // Use all categories as in your example
-      const allCategories = 'CSMS,CSMB,CSCS,CSSB,CSSS';
-      // Try in-stock first (CSSB,CSSS), then all if no results
-      let resp = await searchChemSpace(query, token, 'CSSB,CSSS', shipToCountry);
-      // Handle 401: try refresh token once
-      if (resp.status === 401) {
-        try {
-          token = await fetchToken(env);
-          resp = await searchChemSpace(query, token, 'CSSB,CSSS', shipToCountry);
-        } catch {
-          return errorResponse(500, 'Authentication failed (401)');
-        }
-      }
-      // Handle 429
-      if (resp.status === 429) {
-        return errorResponse(429, 'Rate limit exceeded, please try later', query);
-      }
-      // Handle 500
-      if (resp.status === 500) {
-        return errorResponse(500, 'ChemSpace API error', query);
-      }
-      if (!resp.ok) {
-        const msg = await resp.text();
-        return errorResponse(resp.status, `ChemSpace error: ${msg}`, query);
-      }
-      let data = await resp.json();
-      let items = data.items || [];
-      // If no results, try make-on-demand
-      if (items.length === 0) {
-        const debug1 = {
-          step: 'first search',
-          status: resp.status,
-          url: resp.url,
-          params: { query, categories: 'CSSB,CSSS', shipToCountry }
-        };
-        resp = await searchChemSpace(query, token, allCategories, shipToCountry);
-        let debug2 = {};
-        if (resp.status === 401) {
-          try {
-            token = await fetchToken(env);
-            resp = await searchChemSpace(query, token, allCategories, shipToCountry);
-          } catch {
-            return errorResponse(500, 'Authentication failed (401)');
-          }
-        }
-        if (resp.status === 429) {
-          return errorResponse(429, 'Rate limit exceeded, please try later', query);
-        }
-        if (resp.status === 500) {
-          return errorResponse(500, 'ChemSpace API error', query);
-        }
-        if (!resp.ok) {
-          const msg = await resp.text();
-          return errorResponse(resp.status, `ChemSpace error: ${msg}`, query);
-        }
-        const raw = await resp.clone().text();
-        data = await resp.json();
-        items = data.items || [];
-        debug2 = {
-          step: 'second search',
-          status: resp.status,
-          url: resp.url,
-          params: { query, categories: allCategories, shipToCountry },
-          response: raw
-        };
-        if (items.length === 0) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              query,
-              message: 'No results found',
-              debug: [debug1, debug2]
-            }),
-            { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
-          );
-        }
-      }
-
-      if (items.length === 0) {
-        return new Response(
-          JSON.stringify({ success: false, query, message: 'No results found' }),
-          { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
-        );
-      }
-
-      const cheapest = findCheapest(items, unit);
-      if (!cheapest) {
-        return new Response(
-          JSON.stringify({ success: false, query, message: unit === 'ml' ? 'No prices in mL found' : 'No prices in grams found', unit }),
-          { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
-        );
-      }
-
-      // Add unit field and normalize response shape
-      let responseObj = { success: true, query, unit };
-      if (unit === 'ml') {
-        responseObj.cheapestPricePerMl = cheapest.cheapestPricePerMl;
-        responseObj.currency = cheapest.currency;
-        responseObj.vendorName = cheapest.vendorName;
-        responseObj.pack = cheapest.pack;
-        responseObj.uom = cheapest.uom;
-        responseObj.resultCount = cheapest.resultCount;
-        if (cheapest.link) responseObj.link = cheapest.link;
-      } else {
-        responseObj.cheapestPricePerGram = cheapest.cheapestPricePerGram;
-        responseObj.currency = cheapest.currency;
-        responseObj.vendorName = cheapest.vendorName;
-        responseObj.pack = cheapest.pack;
-        responseObj.uom = cheapest.uom;
-        responseObj.resultCount = cheapest.resultCount;
-        if (cheapest.link) responseObj.link = cheapest.link;
-      }
-
-      return new Response(
-        JSON.stringify(responseObj),
-        { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
-      );
+    try {
+      const estimate = await getPriceEstimate(name, country, unit, question, env);
+      return corsResponse(jsonResponse(estimate, 200));
     } catch (err) {
-      return errorResponse(500, `Internal error: ${err.message}`);
+      return corsResponse(jsonResponse({
+        success: false,
+        error: 'Price estimate unavailable right now. Please try again or enter a price manually.'
+      }, 502));
     }
   }
 };
+
+async function getPriceEstimate(name, country, unit, question, env) {
+  const prompt = buildPrompt(name, country, unit, question);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let mistralRes;
+  try {
+    mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${env.MistralAPI}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: MISTRAL_MODEL,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!mistralRes.ok) {
+    throw new Error(`Mistral request failed: ${mistralRes.status}`);
+  }
+
+  const data = await mistralRes.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Empty response from Mistral');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error('Could not parse price estimate response');
+  }
+
+  const price = Number(parsed.price);
+  if (!Number.isFinite(price) || price <= 0) {
+    return {
+      success: false,
+      error: `No reliable price estimate found for "${name}". Please enter a price manually.`
+    };
+  }
+
+  return {
+    success: true,
+    price,
+    link: '',
+    estimated: true,
+    confidence: parsed.confidence || 'low',
+    disclaimer: 'AI-estimated price. Verify against a supplier quote before relying on this figure.'
+  };
+}
+
+function buildPrompt(name, country, unit, question) {
+  const basis = unit === 'item' ? 'item/unit' : unit === 'ml' ? 'milliliter' : 'gram';
+  return [
+    `You are a pricing assistant for a pharmaceutical lab sustainability and economic assessment tool for industrial use.`,
+    `The app question or field context is: "${question || 'No additional question context was provided.'}".`,
+    `Estimate a realistic current market price for the item: "${name}" using the question context to identify what it is.`,
+    `Country/region context: ${country}. Price basis: per ${basis}, in EUR.`,
+    `The item may be a chemical, solvent, buffer, reagent, laboratory consumable, instrument, detector, column, software product, or other laboratory equipment. For per-item equipment, estimate a typical purchase price for one item.`,
+    `Only set "price" to null when the item cannot be identified or no plausible estimate can be made; do not reject an item merely because it is not a chemical.`,
+    `Respond ONLY with a JSON object, no other text, in exactly this shape:`,
+    `{"price": <number or null>, "confidence": "low"|"medium"|"high"}`
+  ].join(' ');
+}
+
+function jsonResponse(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+function corsResponse(response) {
+  const headers = new Headers(response.headers);
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  return new Response(response.body, { status: response.status, headers });
+}

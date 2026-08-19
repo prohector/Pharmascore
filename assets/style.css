@@ -99,11 +99,8 @@ main.hidden {
 }
 
 .section-guidance {
-	position: fixed;
-	top: auto;
-	left: auto;
-	right: calc(100% - 920px - 48px);
-	max-height: calc(100vh - 140px);
+	position: static;
+	max-height: none;
 	overflow: auto;
 	background: #f8fafb;
 	border: 1px solid #d7e3ee;
@@ -113,6 +110,8 @@ main.hidden {
 	z-index: 30;
 	width: min(340px, calc(100vw - 32px));
 	padding: 16px;
+	width: 100%;
+	grid-column: 1;
 }
 
 .section-guidance h3 {
@@ -1797,14 +1796,6 @@ button[type="button"]:disabled {
 @media (max-width: 768px) {
 	main {
 		padding-top: 72px;
-	}
-
-	.section-guidance {
-		position: absolute;
-		left: 0;
-		top: 52px;
-		width: min(100%, 320px);
-		max-width: 100%;
 	}
 
 	body {
