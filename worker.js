@@ -23,6 +23,25 @@ export default {
       return corsResponse(jsonResponse({ success: false, error: 'Invalid request body' }, 400));
     }
 
+    const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+    const rateLimit = checkIpRateLimit(clientIp);
+    if (!rateLimit.allowed) {
+      return corsResponse(jsonResponse({ success: false, error: rateLimit.error, rateLimited: true }, 429));
+    }
+
+    if (body.action === 'fill_questionnaire') {
+      console.log('[PharmaScore] Worker received fill_questionnaire:', {
+        textLength: typeof body.pdfText === 'string' ? body.pdfText.length : 0,
+        questionCount: Array.isArray(body.questionnaire?.questions) ? body.questionnaire.questions.length : 0
+      });
+      try {
+        const result = await fillQuestionnaireFromPdf(body.pdfText, body.questionnaire, env);
+        return corsResponse(jsonResponse(result, 200));
+      } catch {
+        return corsResponse(jsonResponse({ success: false, error: 'The PDF questionnaire could not be interpreted right now.' }, 502));
+      }
+    }
+
     const name = String(body.name || '').trim();
     const country = String(body.country || 'US').trim();
     const unit = ['g', 'ml', 'item'].includes(body.unit) ? body.unit : 'g';
@@ -31,19 +50,6 @@ export default {
     if (!name || name.length > 200) {
       return corsResponse(jsonResponse({ success: false, error: 'Missing or invalid chemical name' }, 400));
     }
-
-    const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
-    const now = Date.now();
-    const recentQueries = (ipQueryHistory.get(clientIp) || []).filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_MS);
-    if (recentQueries.length >= MAX_IP_QUERIES_PER_MINUTE) {
-      return corsResponse(jsonResponse({
-        success: false,
-        error: 'Please wait before making more price queries. The limit is 5 per minute.',
-        rateLimited: true
-      }, 429));
-    }
-    recentQueries.push(now);
-    ipQueryHistory.set(clientIp, recentQueries);
 
     try {
       const estimate = await getPriceEstimate(name, country, unit, question, env);
@@ -56,6 +62,72 @@ export default {
     }
   }
 };
+
+function checkIpRateLimit(clientIp) {
+  const now = Date.now();
+  const recentQueries = (ipQueryHistory.get(clientIp) || []).filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_MS);
+  if (recentQueries.length >= MAX_IP_QUERIES_PER_MINUTE) {
+    return { allowed: false, error: 'Please wait before making more AI requests. The limit is 5 per minute.' };
+  }
+  recentQueries.push(now);
+  ipQueryHistory.set(clientIp, recentQueries);
+  return { allowed: true };
+}
+
+async function fillQuestionnaireFromPdf(pdfText, questionnaire, env) {
+  const text = String(pdfText || '').trim();
+  if (!text || text.length > 120000 || !questionnaire || typeof questionnaire !== 'object') {
+    return { success: false, error: 'The PDF text or questionnaire schema is missing or too large.' };
+  }
+  const prompt = [
+    'You fill a pharmaceutical laboratory questionnaire from extracted selectable PDF text.',
+    'Use only values supported by the PDF. Do not invent values.',
+    'Match answers to question IDs from the supplied questionnaire schema.',
+    'Return only JSON in the shape {"answers": {"questionId": value, ...}, "confidence": "low"|"medium"|"high", "unfilled": ["questionId", ...]}.',
+    'Use the availableAnswers and units to choose valid values. Preserve numeric values as numbers or numeric strings.',
+    'For equipment_dropdown and column_selector questions, return an object with category and name, for example {"category":"HPLC","name":"Detector X"}; use category "Other" only when the PDF names an item not in the available list.',
+    'For equipment_checklist questions, return an array of exact item names. For sample pretreatment checklists, return objects such as {"name":"Item name","amount":2} when an amount is stated; do not return one combined string.',
+    'For ordinary dropdown questions, return exactly one value from availableAnswers. For booleans, return true or false.',
+    `QUESTIONNAIRE SCHEMA:\n${JSON.stringify(questionnaire)}`,
+    `EXTRACTED PDF TEXT:\n${text}`
+  ].join('\n\n');
+  const response = await fetchMistralJson(prompt, env);
+  if (!response || typeof response.answers !== 'object' || Array.isArray(response.answers)) {
+    return { success: false, error: 'The AI did not return a usable questionnaire answer set.' };
+  }
+  return {
+    success: true,
+    questionnaire: { ...questionnaire, answers: response.answers },
+    confidence: response.confidence || 'low',
+    unfilled: Array.isArray(response.unfilled) ? response.unfilled : []
+  };
+}
+
+async function fetchMistralJson(prompt, env) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let mistralRes;
+  try {
+    mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Authorization': `Bearer ${env.MistralAPI}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MISTRAL_MODEL,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!mistralRes.ok) throw new Error(`Mistral request failed: ${mistralRes.status}`);
+  const data = await mistralRes.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Empty response from Mistral');
+  return JSON.parse(content);
+}
 
 async function getPriceEstimate(name, country, unit, question, env) {
   const prompt = buildPrompt(name, country, unit, question);

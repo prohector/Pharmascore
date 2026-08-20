@@ -117,6 +117,7 @@
     }
     updateConditionalVisibility();
     checkFormValidity();
+    if (typeof window.updateCurrentSectionScore === 'function') window.updateCurrentSectionScore();
   });
 
   document.addEventListener('DOMContentLoaded', function () {

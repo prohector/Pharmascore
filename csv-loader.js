@@ -192,7 +192,17 @@
           try {
             parsedParams = JSON.parse(parsedParams);
           } catch {
-            parsedParams = row.params;
+            const normalizedParams = row.params.replace(/\\/g, '');
+            try {
+              parsedParams = JSON.parse(normalizedParams);
+              console.info('[PharmaScore] Repaired escaped params:', row.id);
+            } catch {
+              console.warn('[PharmaScore] Malformed params for question:', row.id, {
+                raw: row.params,
+                normalized: normalizedParams
+              });
+              parsedParams = row.params;
+            }
           }
         }
         sectionMap[section].push({

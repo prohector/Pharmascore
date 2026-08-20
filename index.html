@@ -9,10 +9,16 @@
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
+	<script type="module">
+		import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+		pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+		window.pdfjsLib = pdfjsLib;
+	</script>
 
 	   <script type="module">
-	   import { lookupChemicalPrice } from './api.js';
+	   import { lookupChemicalPrice, requestQuestionnaireFill } from './api.js';
 	   window.lookupChemicalPrice = lookupChemicalPrice;
+	   window.requestQuestionnaireFill = requestQuestionnaireFill;
 	   </script>
 
 </head>
@@ -57,6 +63,12 @@
 			<button id="routine-analysis-btn" type="button" class="analysis-choice-btn">Routine analysis</button>
 			<button id="advanced-analysis-btn" type="button" class="analysis-choice-btn">Advanced analysis</button>
 		</div>
+		<label class="analysis-autofill-option" for="analysis-pdf-autofill">
+			<input id="analysis-pdf-autofill" type="checkbox">
+			<span>Auto-fill from a selectable-text PDF</span>
+		</label>
+		<input id="analysis-pdf-file" type="file" accept="application/pdf" class="hidden">
+		<div id="analysis-pdf-status" class="analysis-pdf-status" aria-live="polite"></div>
 	</section>
 	<!-- Loading/Error UI -->
 	<div id="loading-message" class="hidden">Loading questionnaire...</div>
@@ -93,6 +105,7 @@
 		<form id="assessment-form" autocomplete="off">
 			<!-- Questions will be rendered here -->
 		</form>
+		<div id="current-section-score" class="current-section-score" aria-live="polite"></div>
 		<div class="form-buttons">
 			<button id="prev-btn" type="button" class="btn-prev hidden">Previous</button>
 			<button id="next-btn" type="button" class="btn-next">Next</button>
@@ -108,11 +121,13 @@
 		  <div id="debug-scores"></div>
 		   <button id="retake-btn" type="button" class="btn-retake">Retake Assessment</button>
 		</section>
-	<script src="state.js?v=20260815b"></script>
-<script src="csv-loader.js?v=20260815b"></script>
-<script src="render.js?v=20260815b"></script>
-<script src="validation.js?v=20260815b"></script>
-<script src="navigation.js?v=20260815b"></script>
+	<script src="state.js?v=20260820c"></script>
+	<script src="csv-loader.js?v=20260820c"></script>
+	<script src="render.js?v=20260820c"></script>
+	<script src="validation.js?v=20260820c"></script>
+	<script src="navigation.js?v=20260820c"></script>
+<script src="questionnaire-json.js?v=20260820d"></script>
+<script src="pdf-reader.js?v=20260820a"></script>
 <script src="scorer.js?v=20260815b"></script>
 <script src="chart.js?v=20260815b"></script>
 </body>

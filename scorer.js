@@ -53,6 +53,7 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 					console.warn('Missing or invalid params for lookup question', q.id);
 					continue;
 				}
+				if (val === undefined || val === null || val === '') continue;
 				if (val in params) {
 					score = params[val];
 					ruleDetail = { type: 'lookup', matchedKey: val, mappedValue: params[val] };

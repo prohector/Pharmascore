@@ -40,8 +40,6 @@
         steps: [
           'Enter number of analytes ________',
           'Use the same units shown in each question label.',
-          String.raw`$$\text{Matrix Effect (\%)} = \left( \frac{\text{Peak area (post-extraction spiked sample)}}{\text{Peak area (neat standard)}} - 1 \right) \times 100$$`,
-          String.raw`$$\text{Process efficiency (\%)} = \text{matrix recovery} \times \text{matrix effect}.$$`,
           'If you are unsure, check your validation report before entering numbers.',
           'Complete all required items before moving to the next section.'
         ]

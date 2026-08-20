@@ -90,6 +90,28 @@
         });
       }
     }
+    updateCurrentSectionScore();
+  }
+
+  function updateCurrentSectionScore() {
+    const scoreEl = document.getElementById('current-section-score');
+    const area = QUESTION_AREAS[currentTab];
+    if (!scoreEl || !area || typeof calculateScores !== 'function') return;
+    const scores = calculateScores(QUESTION_AREAS, ANSWERS, ANALYSIS_MODE);
+    const score = Number(scores[area.title] || 0);
+    scoreEl.innerHTML = `<span>${area.title} score: ${score}/100</span>`;
+  }
+
+  function getQuestionThresholdScore(questionId, value) {
+    const question = QUESTION_AREAS.flatMap(area => area.questions || []).find(item => item.id === questionId);
+    if (!question) return 0;
+    try {
+      const params = typeof question.params === 'object' ? question.params : JSON.parse(question.params || '{}');
+      const matchingRange = (params.ranges || []).filter(range => Number(value) <= Number(range.max)).sort((a, b) => Number(b.score) - Number(a.score))[0];
+      return matchingRange ? Number(matchingRange.score) : 0;
+    } catch {
+      return 0;
+    }
   }
 
   function renderFixedCostSubTabs() {
@@ -247,6 +269,15 @@
   }
 
   function chooseAnalysisMode(mode) {
+    const autoFill = document.getElementById('analysis-pdf-autofill');
+    const fileInput = document.getElementById('analysis-pdf-file');
+    if (autoFill && autoFill.checked && fileInput) {
+      fileInput.dataset.analysisMode = mode;
+      const status = document.getElementById('analysis-pdf-status');
+      if (status) status.textContent = 'Choose a selectable-text PDF to begin auto-fill.';
+      fileInput.click();
+      return;
+    }
     ANALYSIS_MODE = mode;
     ANALYSIS_GATE_CHOSEN = true;
     showQuestionnaireIfReady();
@@ -368,6 +399,13 @@
     return q ? q.unit : '';
   }
 
+  function getQuestionInfoText(q) {
+    if (!q) return '';
+    if (q.id === 'perf14') return String.raw`$$\text{Matrix Effect (\%)} = \left( \frac{\text{Peak area (post-extraction spiked sample)}}{\text{Peak area (neat standard)}} - 1 \right) \times 100$$`;
+    if (q.id === 'perf15') return String.raw`$$\text{Process efficiency (\%)} = \text{matrix recovery} \times \text{matrix effect}.$$`;
+    return '';
+  }
+
   function renderSimpleSelect(selectId, options, placeholder, valueField = 'value', labelField = 'label') {
     const optionElements = options.map(opt => {
       const val = opt[valueField] !== undefined ? opt[valueField] : opt;
@@ -461,16 +499,16 @@
         return;
       }
       query.disabled = true;
-      if (messageEl) messageEl.textContent = 'Querying an AI price estimate...';
+      if (messageEl) messageEl.textContent = 'Querying an AI price estimate. You can edit the price in the field below when it appears...';
       const result = await window.lookupChemicalPrice(name, 'US', unit, questionText);
       query.disabled = false;
       if (!result.success) {
         if (priceEl) priceEl.value = '';
-        if (messageEl) messageEl.textContent = result.error || 'No reliable estimate was found.';
+        if (messageEl) messageEl.textContent = `${result.error || 'No reliable estimate was found.'} You can enter a price manually below.`;
         return;
       }
       if (priceEl) priceEl.value = String(result.price);
-      if (messageEl) messageEl.textContent = `${result.disclaimer || 'AI-estimated price. Verify before relying on it.'} Confidence: ${result.confidence || 'low'}.`;
+      if (messageEl) messageEl.textContent = `${result.disclaimer || 'AI-estimated price. Verify before relying on it.'} Confidence: ${result.confidence || 'low'}. You can edit the price below if needed.`;
       onSuccess({ name, unit, price: Number(result.price), disclaimer: result.disclaimer || 'AI-estimated price. Verify before relying on it.' });
     });
     const priceEl = document.getElementById(ids.priceId);
@@ -490,7 +528,7 @@
 
     const filtered = (Array.isArray(INSTRUMENT_OPTIONS) ? INSTRUMENT_OPTIONS : []).filter(inst => String(inst.type || 'Other') === String(selectedType));
     const currentValue = nameEl.value;
-    nameEl.innerHTML = '<option value="">Select instrument...</option>' + filtered.map(inst => `<option value="${String(inst.name).replace(/"/g, '&quot;')}" data-price="${Number(inst.price || 0)}">${inst.name}</option>`).join('') + '<option value="__other__">Other</option>';
+    nameEl.innerHTML = '<option value="">Select instrument...</option>' + filtered.map(inst => `<option value="${String(inst.name).replace(/"/g, '&quot;')}" data-price="${Number(inst.price || 0)}">${inst.name}</option>`).join('');
 
     if (filtered.length && currentValue && filtered.some(inst => String(inst.name) === String(currentValue))) {
       nameEl.value = currentValue;
@@ -511,18 +549,20 @@
     const selectedName = nameEl.value;
     const selected = (Array.isArray(INSTRUMENT_OPTIONS) ? INSTRUMENT_OPTIONS : []).find(inst => String(inst.type || 'Other') === String(selectedType) && String(inst.name) === String(selectedName));
     const otherPrice = Number(document.getElementById(getOtherLookupIds(questionId).priceId)?.value || 0);
-    const price = selectedName === '__other__' ? otherPrice : (Number(selected && selected.price ? selected.price : 0) || 0);
+    const price = selectedType === '__other__' ? otherPrice : (Number(selected && selected.price ? selected.price : 0) || 0);
 
-    if (selectedName === '__other__' && (!Number.isFinite(price) || price <= 0)) {
+    if (selectedType === '__other__' && (!Number.isFinite(price) || price <= 0)) {
       delete ANSWERS[questionId];
       delete ANSWERS[questionId + '_total'];
       return;
     }
 
     if (totalEl) totalEl.value = String(price.toFixed(2));
+    const scoreOutput = document.getElementById(`${questionId}_score_output`);
+    if (scoreOutput) scoreOutput.textContent = `Score: ${getQuestionThresholdScore(questionId, price)}/100`;
     ANSWERS[questionId] = String(price);
     ANSWERS[questionId + '_total'] = String(price);
-    ANSWERS[questionId + '_name'] = selectedName === '__other__' ? (nameEl.dataset.otherName || '') : (selectedName || '');
+    ANSWERS[questionId + '_name'] = selectedType === '__other__' ? (nameEl.dataset.otherName || '') : (selectedName || '');
     ANSWERS[questionId + '_type'] = selectedType || '';
   }
 
@@ -916,7 +956,7 @@
     } catch {
       score = 0;
     }
-    if (scoreEl) scoreEl.textContent = String(score);
+    if (scoreEl) scoreEl.textContent = `Score: ${score}/100`;
     ANSWERS[questionId] = String(total.toFixed(2));
     ANSWERS[questionId + '_total'] = String(total.toFixed(2));
   }
@@ -1022,6 +1062,8 @@
     }
 
     if (totalEl) totalEl.value = Number.isFinite(total) ? String(total.toFixed(2)) : '0';
+    const scoreOutput = document.getElementById(`${questionId}_score_output`);
+    if (scoreOutput) scoreOutput.textContent = `Score: ${getQuestionThresholdScore(questionId, total)}/100`;
     if (mix.gradientMode === 'gradient') {
       console.groupCollapsed(`[PharmaScore] Gradient cost calculation: ${questionId}`);
       console.table(getGradientCostBreakdown(questionId, Number(document.getElementById(ids.gradientFlowId)?.value || 0) || 0));
@@ -1038,7 +1080,7 @@
 
     const filtered = (Array.isArray(COLUMN_OPTIONS) ? COLUMN_OPTIONS : []).filter(column => String(column.type) === String(selectedType));
     const currentValue = nameEl.value;
-    nameEl.innerHTML = '<option value="">Select column name...</option>' + filtered.map(column => `<option value="${String(column.fullName).replace(/"/g, '&quot;')}" data-price="${Number(column.price || 0)}">${column.fullName}</option>`).join('') + '<option value="__other__">Other</option>';
+    nameEl.innerHTML = '<option value="">Select column name...</option>' + filtered.map(column => `<option value="${String(column.fullName).replace(/"/g, '&quot;')}" data-price="${Number(column.price || 0)}">${column.fullName}</option>`).join('');
 
     if (filtered.length && currentValue && filtered.some(column => String(column.fullName) === String(currentValue))) {
       nameEl.value = currentValue;
@@ -1059,18 +1101,20 @@
     const selectedName = nameEl.value;
     const selected = (Array.isArray(COLUMN_OPTIONS) ? COLUMN_OPTIONS : []).find(column => String(column.type) === String(selectedType) && String(column.fullName) === String(selectedName));
     const otherPrice = Number(document.getElementById(getOtherLookupIds(questionId).priceId)?.value || 0);
-    const price = selectedName === '__other__' ? otherPrice : (Number(selected && selected.price ? selected.price : 0) || 0);
+    const price = selectedType === '__other__' ? otherPrice : (Number(selected && selected.price ? selected.price : 0) || 0);
 
-    if (selectedName === '__other__' && (!Number.isFinite(price) || price <= 0)) {
+    if (selectedType === '__other__' && (!Number.isFinite(price) || price <= 0)) {
       delete ANSWERS[questionId];
       delete ANSWERS[questionId + '_total'];
       return;
     }
 
     if (totalEl) totalEl.value = String(price.toFixed(2));
+    const scoreOutput = document.getElementById(`${questionId}_score_output`);
+    if (scoreOutput) scoreOutput.textContent = `Score: ${getQuestionThresholdScore(questionId, price)}/100`;
     ANSWERS[questionId] = String(price);
     ANSWERS[questionId + '_total'] = String(price);
-    ANSWERS[questionId + '_name'] = selectedName === '__other__' ? (nameEl.dataset.otherName || '') : (selectedName || '');
+    ANSWERS[questionId + '_name'] = selectedType === '__other__' ? (nameEl.dataset.otherName || '') : (selectedName || '');
   }
 
   function renderQuestions() {
@@ -1084,6 +1128,10 @@
     questionsToRender.forEach(q => {
       if (q.type === 'label') {
         if (q.id === 'equip_section3') return;
+        if (q.id === 'sample_analysis_results_heading') {
+          form.innerHTML += `<div class="form-section-title-only">${q.text || ''}</div>`;
+          return;
+        }
         const labelIconKey = iconKeyFromText(q.id || q.text || 'section');
         form.innerHTML += `<div class="form-label-block"><span class="label-icon-slot" data-icon-key="${labelIconKey}" aria-hidden="true"></span><div class="form-label-block-copy">${q.text || ''}</div></div>`;
         return;
@@ -1131,7 +1179,7 @@
       } else if (q.type === 'equipment_dropdown') {
         const ids = getEquipmentDropdownIds(q.id);
         const instrumentTypes = [...new Set((Array.isArray(INSTRUMENT_OPTIONS) ? INSTRUMENT_OPTIONS : []).map(inst => inst.type || 'Other'))].sort();
-        const typeOptionsHtml = instrumentTypes.map(type => `<option value="${String(type).replace(/"/g, '&quot;')}">${String(type)}</option>`).join('');
+        const typeOptionsHtml = instrumentTypes.map(type => `<option value="${String(type).replace(/"/g, '&quot;')}">${String(type)}</option>`).join('') + '<option value="__other__">Other</option>';
         input = `
           <div class="equipment-dropdown-wrap" id="${ids.wrapperId}">
             <div class="recurring-cost-grid">
@@ -1151,7 +1199,7 @@
             </div>
             ${renderOtherLookupControls(q.id, 'item')}
             <div class="chem-lookup-total-section">
-              <label for="${ids.totalId}" class="input-label-small">Selected primary instrumentation score</label>
+              <span id="${q.id}_score_output" class="question-score-output">Score: 0/100</span>
               <input id="${ids.totalId}" name="${ids.totalId}" type="hidden">
             </div>
           </div>
@@ -1179,7 +1227,7 @@
             </div>` : ''}
           </div>`;
         }).join('') : '<div class="equipment-empty">No auxiliary equipment loaded for this section.</div>';
-        const isFirstChecklistOpen = q.id === 'aux_pretreat_basic';
+          const isFirstChecklistOpen = false;
         input = `
           <div class="equipment-checklist-wrap">
             <button type="button" class="equipment-checklist-toggle ${isFirstChecklistOpen ? 'is-open' : ''}" data-target="${q.id}_equipment_panel" aria-expanded="${isFirstChecklistOpen ? 'true' : 'false'}">
@@ -1190,7 +1238,7 @@
               <div id="${q.id}_equipment_empty" class="equipment-empty hidden">No instruments were loaded from the auxiliary equipment CSV.</div>
               <div class="chem-lookup-total-section">
                 <label for="${q.id}_score" class="input-label-small">${isSamplePretreatment ? 'Total sample pretreatment score' : 'Total auxiliary equipment score'}</label>
-                <output id="${q.id}_score" class="form-input form-input-readonly">0</output>
+                <output id="${q.id}_score" class="question-score-output">Score: 0/100</output>
                 <input id="${q.id}_total" name="${q.id}_total" type="hidden">
               </div>
             </div>
@@ -1203,7 +1251,7 @@
             <div class="recurring-cost-grid">
               <div class="recurring-cost-field">
                 <label id="${q.id}_column_type_label" for="${ids.columnTypeId}" class="input-label-small">Column Type</label>
-                ${renderSimpleSelect(ids.columnTypeId, getColumnTypes(COLUMN_OPTIONS), 'Select type')}
+                ${renderSimpleSelect(ids.columnTypeId, getColumnTypes(COLUMN_OPTIONS), 'Select type').replace('</select>', '<option value="__other__">Other</option></select>')}
               </div>
               <div class="recurring-cost-field">
                 <label id="${q.id}_column_label" for="${ids.columnNameId}" class="input-label-small">Full column characteristics</label>
@@ -1214,7 +1262,7 @@
             </div>
             ${renderOtherLookupControls(q.id, 'item')}
             <div class="chem-lookup-total-section">
-              <label for="${ids.totalId}" class="input-label-small">Total fixed column score</label>
+              <span id="${q.id}_score_output" class="question-score-output">Score: 0/100</span>
               <input id="${ids.totalId}" name="${ids.totalId}" type="hidden">
             </div>
           </div>
@@ -1357,7 +1405,7 @@
             </div>
 
             <div class="chem-lookup-total-section">
-              <label for="${ids.totalId}" class="input-label-small">Total analytical consumables score</label>
+              <span id="${q.id}_score_output" class="question-score-output">Score: 0/100</span>
               <input id="${ids.totalId}" name="${ids.totalId}" type="hidden">
             </div>
           </div>
@@ -1370,11 +1418,21 @@
       if (isConditional && !isVisible) wrapper.classList.add('hidden');
       wrapper.innerHTML = `
         <div class="form-question">
-          <label id="${q.id}_label" for="${q.id}" class="question-label">${getQuestionDisplayText(q)}</label>
+          <div class="question-label-row">
+            <label id="${q.id}_label" for="${q.id}" class="question-label">${getQuestionDisplayText(q)}</label>
+            ${getQuestionInfoText(q) ? `<span class="question-info-wrap"><button type="button" class="question-info-button" aria-label="Show formula information">i</button><span class="question-info-tooltip">${getQuestionInfoText(q)}</span></span>` : ''}
+          </div>
           ${input}
         </div>
       `;
       form.appendChild(wrapper);
+      const infoButton = wrapper.querySelector('.question-info-button');
+      const infoTooltip = wrapper.querySelector('.question-info-tooltip');
+      if (infoButton && infoTooltip) {
+        if (typeof window.renderMathInElement === 'function') {
+          window.renderMathInElement(infoTooltip, { delimiters: [{ left: '$$', right: '$$', display: true }], throwOnError: false });
+        }
+      }
 
       if (q.type === 'recurring_cost_calculator') {
         const ids = getRecurringCostIds(q.id);
@@ -1423,7 +1481,18 @@
         const typeEl = document.getElementById(ids.typeId);
         const nameEl = document.getElementById(ids.nameId);
         if (typeEl) {
-          typeEl.addEventListener('change', () => populateInstrumentNames(q.id, typeEl.value, ids));
+          typeEl.addEventListener('change', () => {
+            if (typeEl.value === '__other__') {
+              nameEl.value = '';
+              nameEl.disabled = true;
+              setOtherLookupVisibility(q.id, true);
+              updateInstrumentDropdownTotal(q.id, ids);
+            } else {
+              nameEl.disabled = false;
+              setOtherLookupVisibility(q.id, false);
+              populateInstrumentNames(q.id, typeEl.value, ids);
+            }
+          });
           const selectedType = typeEl.value;
           if (selectedType) populateInstrumentNames(q.id, selectedType, ids);
         }
@@ -1506,7 +1575,18 @@
         const ids = getColumnSelectorIds(q.id);
         const typeEl = document.getElementById(ids.columnTypeId);
         if (typeEl) {
-          typeEl.addEventListener('change', () => populateColumnNames(q.id, typeEl.value, ids));
+          typeEl.addEventListener('change', () => {
+            if (typeEl.value === '__other__') {
+              nameEl.value = '';
+              nameEl.disabled = true;
+              setOtherLookupVisibility(q.id, true);
+              updateColumnSelectorTotal(q.id, ids);
+            } else {
+              nameEl.disabled = false;
+              setOtherLookupVisibility(q.id, false);
+              populateColumnNames(q.id, typeEl.value, ids);
+            }
+          });
           const selectedType = typeEl.value;
           if (selectedType) populateColumnNames(q.id, selectedType, ids);
         }
@@ -1690,6 +1770,37 @@
     if (routineBtn) routineBtn.addEventListener('click', () => chooseAnalysisMode('routine'));
     if (advancedBtn) advancedBtn.addEventListener('click', () => chooseAnalysisMode('advanced'));
 
+    const pdfInput = document.getElementById('analysis-pdf-file');
+    if (pdfInput) {
+      pdfInput.addEventListener('change', async () => {
+        const file = pdfInput.files && pdfInput.files[0];
+        const mode = pdfInput.dataset.analysisMode || 'routine';
+        const status = document.getElementById('analysis-pdf-status');
+        if (!file) return;
+        ANALYSIS_MODE = mode;
+        ANALYSIS_GATE_CHOSEN = true;
+        if (status) status.textContent = 'Extracting selectable PDF text...';
+        try {
+          console.info('[PharmaScore] PDF autofill started:', { fileName: file.name, size: file.size, mode });
+          showQuestionnaireIfReady();
+          const questionnaire = window.buildQuestionnaireJson();
+          const result = await window.fillQuestionnaireFromPdf(file, questionnaire);
+          if (!result.success) throw new Error(result.error || 'The PDF could not be processed.');
+          console.info('[PharmaScore] Importing AI questionnaire answers:', {
+            answerCount: result.questionnaire?.answers ? Object.keys(result.questionnaire.answers).length : 0,
+            unfilledCount: Array.isArray(result.unfilled) ? result.unfilled.length : null
+          });
+          window.importQuestionnaireJson(result.questionnaire || result);
+          if (status) status.textContent = 'PDF values imported. Review the answers before continuing.';
+        } catch (error) {
+          if (status) status.textContent = error.message || 'PDF auto-fill failed. You can complete the questionnaire manually.';
+          console.warn('[PharmaScore] PDF auto-fill failed:', error);
+        } finally {
+          pdfInput.value = '';
+        }
+      });
+    }
+
     const debugBtn = document.getElementById('debug-autofill-btn');
     if (debugBtn) debugBtn.addEventListener('click', debugAutofillAllQuestions);
 
@@ -1719,6 +1830,7 @@
   Object.defineProperties(window, {
     toggleSectionGuidance: { value: toggleSectionGuidance, configurable: true },
     updateSectionGuidance: { value: updateSectionGuidance, configurable: true },
+    updateCurrentSectionScore: { value: updateCurrentSectionScore, configurable: true },
     isFixedCostsArea: { value: isFixedCostsArea, configurable: true },
     getFixedCostSubTab: { value: getFixedCostSubTab, configurable: true },
     getQuestionsForCurrentView: { value: getQuestionsForCurrentView, configurable: true },
@@ -1736,6 +1848,7 @@
     renderMappedSelect: { value: renderMappedSelect, configurable: true },
     getColumnSelectorIds: { value: getColumnSelectorIds, configurable: true },
     getEquipmentDropdownIds: { value: getEquipmentDropdownIds, configurable: true },
+    setOtherLookupVisibility: { value: setOtherLookupVisibility, configurable: true },
     getRecurringCostIds: { value: getRecurringCostIds, configurable: true },
     getRecurringMix: { value: getRecurringMix, configurable: true },
     applyRecurringModeVisibility: { value: applyRecurringModeVisibility, configurable: true },

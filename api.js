@@ -51,3 +51,35 @@ export async function lookupChemicalPrice(name, country = 'US', unit = 'g', ques
     return { success: false, error: 'Price lookup is unavailable. Check your connection and try again.' };
   }
 }
+
+export async function requestQuestionnaireFill(pdfText, questionnaire) {
+  const text = String(pdfText || '').trim();
+  if (!text) return { success: false, error: 'No selectable PDF text was found.' };
+  const limit = checkAndRecordQuery();
+  if (!limit.allowed) return { success: false, error: limit.error, rateLimited: true };
+  console.info('[PharmaScore] Sending PDF questionnaire request:', {
+    textLength: text.length,
+    questionCount: Array.isArray(questionnaire?.questions) ? questionnaire.questions.length : 0,
+    answerCount: questionnaire?.answers ? Object.keys(questionnaire.answers).length : 0
+  });
+  try {
+    const response = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'fill_questionnaire', pdfText: text.slice(0, 120000), questionnaire })
+    });
+    const data = await response.json().catch(() => ({}));
+    console.info('[PharmaScore] PDF questionnaire response:', {
+      status: response.status,
+      ok: response.ok,
+      success: data.success,
+      confidence: data.confidence,
+      unfilledCount: Array.isArray(data.unfilled) ? data.unfilled.length : null,
+      error: data.error || null
+    });
+    if (!response.ok || !data.success) return { success: false, error: data.error || `Questionnaire fill failed (${response.status}).` };
+    return data;
+  } catch {
+    return { success: false, error: 'The PDF questionnaire service is unavailable. Please try again.' };
+  }
+}

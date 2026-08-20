@@ -66,7 +66,11 @@
         if (typeEl) ANSWERS[ids.typeId] = typeEl.value;
         if (nameEl) ANSWERS[ids.nameId] = nameEl.value === '__other__' ? (nameEl.dataset.otherName || '') : nameEl.value;
         const selectedOption = nameEl && nameEl.selectedOptions ? nameEl.selectedOptions[0] : null;
-        if (selectedOption) {
+        if (nameEl && typeEl && typeEl.value === '__other__') {
+          ANSWERS[q.id + '_name'] = nameEl.dataset.otherName || '';
+          ANSWERS[q.id] = String(Number(totalEl && totalEl.value || 0));
+          ANSWERS[q.id + '_total'] = ANSWERS[q.id];
+        } else if (selectedOption) {
           ANSWERS[q.id + '_name'] = selectedOption.value === '__other__' ? (nameEl.dataset.otherName || '') : selectedOption.value;
           ANSWERS[q.id] = String(Number(selectedOption.getAttribute('data-price') || 0));
           if (totalEl) totalEl.value = ANSWERS[q.id];
@@ -204,7 +208,13 @@
         const totalEl = document.getElementById(ids.totalId);
         if (typeEl && ANSWERS[ids.typeId] !== undefined) {
           typeEl.value = ANSWERS[ids.typeId];
-          populateInstrumentNames(q.id, ANSWERS[ids.typeId], ids);
+          if (typeEl.value === '__other__') {
+            if (nameEl) nameEl.disabled = true;
+            if (typeof window.setOtherLookupVisibility === 'function') window.setOtherLookupVisibility(q.id, true);
+          } else {
+            if (nameEl) nameEl.disabled = false;
+            populateInstrumentNames(q.id, ANSWERS[ids.typeId], ids);
+          }
         }
         if (nameEl && ANSWERS[ids.nameId] !== undefined) nameEl.value = ANSWERS[ids.nameId];
         if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
@@ -264,7 +274,13 @@
         const totalEl = document.getElementById(ids.totalId);
         if (columnTypeEl && ANSWERS[ids.columnTypeId] !== undefined) {
           columnTypeEl.value = ANSWERS[ids.columnTypeId];
-          populateColumnNames(q.id, ANSWERS[ids.columnTypeId], ids);
+          if (columnTypeEl.value === '__other__') {
+            if (columnNameEl) columnNameEl.disabled = true;
+            if (typeof window.setOtherLookupVisibility === 'function') window.setOtherLookupVisibility(q.id, true);
+          } else {
+            if (columnNameEl) columnNameEl.disabled = false;
+            populateColumnNames(q.id, ANSWERS[ids.columnTypeId], ids);
+          }
         }
         if (columnNameEl && ANSWERS[ids.columnNameId] !== undefined) columnNameEl.value = ANSWERS[ids.columnNameId];
         if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
