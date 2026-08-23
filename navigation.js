@@ -64,11 +64,15 @@
         const typeEl = document.getElementById(ids.typeId);
         const nameEl = document.getElementById(ids.nameId);
         const totalEl = document.getElementById(ids.totalId);
+        const isOtherType = !!(typeEl && typeEl.value === '__other__');
+        const otherName = isOtherType
+          ? (nameEl && nameEl.dataset.otherName) || (document.getElementById(`${q.id}_other_name`)?.value || '')
+          : '';
         if (typeEl) ANSWERS[ids.typeId] = typeEl.value;
-        if (nameEl) ANSWERS[ids.nameId] = nameEl.value === '__other__' ? (nameEl.dataset.otherName || '') : nameEl.value;
+        if (nameEl) ANSWERS[ids.nameId] = isOtherType ? otherName : (nameEl.value === '__other__' ? (nameEl.dataset.otherName || '') : nameEl.value);
         const selectedOption = nameEl && nameEl.selectedOptions ? nameEl.selectedOptions[0] : null;
-        if (nameEl && typeEl && typeEl.value === '__other__') {
-          ANSWERS[q.id + '_name'] = nameEl.dataset.otherName || '';
+        if (isOtherType) {
+          ANSWERS[q.id + '_name'] = otherName;
           ANSWERS[q.id] = String(Number(totalEl && totalEl.value || 0));
           ANSWERS[q.id + '_total'] = ANSWERS[q.id];
         } else if (selectedOption) {
@@ -123,8 +127,12 @@
         const columnTypeEl = document.getElementById(ids.columnTypeId);
         const columnNameEl = document.getElementById(ids.columnNameId);
         const totalEl = document.getElementById(ids.totalId);
+        const isOtherType = !!(columnTypeEl && columnTypeEl.value === '__other__');
+        const otherName = isOtherType
+          ? (columnNameEl && columnNameEl.dataset.otherName) || (document.getElementById(`${q.id}_other_name`)?.value || '')
+          : '';
         if (columnTypeEl) ANSWERS[ids.columnTypeId] = columnTypeEl.value;
-        if (columnNameEl) ANSWERS[ids.columnNameId] = columnNameEl.value;
+        if (columnNameEl) ANSWERS[ids.columnNameId] = isOtherType ? otherName : (columnNameEl.value === '__other__' ? (columnNameEl.dataset.otherName || '') : columnNameEl.value);
         if (totalEl) ANSWERS[q.id] = totalEl.value;
         if (totalEl) ANSWERS[q.id + '_total'] = totalEl.value;
         return;
@@ -205,6 +213,17 @@
               }
             }
           });
+          const checkedCount = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).length + customItems.length;
+          if (checkedCount > 0) {
+            const panel = document.getElementById(`${q.id}_equipment_panel`);
+            const toggle = document.querySelector(`[data-target="${q.id}_equipment_panel"]`);
+            if (panel) panel.classList.remove('hidden');
+            if (toggle) {
+              toggle.classList.add('is-open');
+              toggle.setAttribute('aria-expanded', 'true');
+            }
+          }
+          console.info('[PharmaScore] Restored checklist:', { id: q.id, checked: checkedCount });
         }
         if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
         if (typeof window.updateEquipmentChecklistTotal === 'function') {
@@ -223,12 +242,18 @@
           if (typeEl.value === '__other__') {
             if (nameEl) nameEl.disabled = true;
             if (typeof window.setOtherLookupVisibility === 'function') window.setOtherLookupVisibility(q.id, true);
+            const otherNameEl = document.getElementById(`${q.id}_other_name`);
+            const otherPriceEl = document.getElementById(`${q.id}_other_price`);
+            const savedName = ANSWERS[ids.nameId] !== undefined ? ANSWERS[ids.nameId] : '';
+            if (nameEl) nameEl.dataset.otherName = savedName;
+            if (otherNameEl) otherNameEl.value = savedName;
+            if (otherPriceEl && ANSWERS[q.id] !== undefined) otherPriceEl.value = ANSWERS[q.id];
           } else {
             if (nameEl) nameEl.disabled = false;
             populateInstrumentNames(q.id, ANSWERS[ids.typeId], ids);
           }
         }
-        if (nameEl && ANSWERS[ids.nameId] !== undefined) nameEl.value = ANSWERS[ids.nameId];
+        if (nameEl && ANSWERS[ids.nameId] !== undefined && typeEl && typeEl.value !== '__other__') nameEl.value = ANSWERS[ids.nameId];
         if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
         updateInstrumentDropdownTotal(q.id, ids);
         return;
@@ -289,12 +314,18 @@
           if (columnTypeEl.value === '__other__') {
             if (columnNameEl) columnNameEl.disabled = true;
             if (typeof window.setOtherLookupVisibility === 'function') window.setOtherLookupVisibility(q.id, true);
+            const otherNameEl = document.getElementById(`${q.id}_other_name`);
+            const otherPriceEl = document.getElementById(`${q.id}_other_price`);
+            const savedName = ANSWERS[ids.columnNameId] !== undefined ? ANSWERS[ids.columnNameId] : '';
+            if (columnNameEl) columnNameEl.dataset.otherName = savedName;
+            if (otherNameEl) otherNameEl.value = savedName;
+            if (otherPriceEl && ANSWERS[q.id] !== undefined) otherPriceEl.value = ANSWERS[q.id];
           } else {
             if (columnNameEl) columnNameEl.disabled = false;
             populateColumnNames(q.id, ANSWERS[ids.columnTypeId], ids);
           }
         }
-        if (columnNameEl && ANSWERS[ids.columnNameId] !== undefined) columnNameEl.value = ANSWERS[ids.columnNameId];
+        if (columnNameEl && ANSWERS[ids.columnNameId] !== undefined && columnTypeEl && columnTypeEl.value !== '__other__') columnNameEl.value = ANSWERS[ids.columnNameId];
         if (totalEl && ANSWERS[q.id] !== undefined) totalEl.value = ANSWERS[q.id];
         updateColumnSelectorTotal(q.id);
         return;

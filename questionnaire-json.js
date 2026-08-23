@@ -1,5 +1,5 @@
 (function () {
-  const FORMAT_VERSION = 1;
+  const FORMAT_VERSION = 2;
 
   function parseJsonInput(input) {
     if (typeof input === 'string') {
@@ -48,12 +48,56 @@
         : []).concat('Add other');
     }
     if (question.type === 'recurring_cost_calculator') {
+      const solventNames = (Array.isArray(window.SOLVENT_OPTIONS) ? window.SOLVENT_OPTIONS : []).map(item => String(item.name || '')).filter(Boolean);
+      const bufferNames = (Array.isArray(window.BUFFER_OPTIONS) ? window.BUFFER_OPTIONS : []).map(item => String(item.name || '')).filter(Boolean);
       return {
-        normalPhaseSolvents: (Array.isArray(window.SOLVENT_OPTIONS) ? window.SOLVENT_OPTIONS.map(item => String(item.name || '')).filter(Boolean) : []).concat('Other'),
-        buffers: (Array.isArray(window.BUFFER_OPTIONS) ? window.BUFFER_OPTIONS.map(item => String(item.name || '')).filter(Boolean) : []).concat('Other')
+        normalPhaseSolvents: solventNames.concat('Other'),
+        reversePhaseSolvents: solventNames.concat('Other'),
+        buffers: bufferNames.concat('Other'),
+        modifiers: bufferNames.concat('Other')
       };
     }
     return [];
+  }
+
+  function getQuestionExportValue(question) {
+    const id = question.id;
+    if (question.type === 'equipment_dropdown') {
+      const name = window.ANSWERS[id + '_name'];
+      const type = window.ANSWERS[id + '_type'];
+      if (!name) return null;
+      return { category: type === '__other__' ? 'Other' : (type || 'Other'), name, price: window.ANSWERS[id] !== undefined ? window.ANSWERS[id] : undefined };
+    }
+    if (question.type === 'column_selector') {
+      const name = window.ANSWERS[id + '_name'];
+      const type = window.ANSWERS[id + '_type'];
+      if (!name) return null;
+      return { category: type === '__other__' ? 'Other' : (type || 'Other'), name, price: window.ANSWERS[id] !== undefined ? window.ANSWERS[id] : undefined };
+    }
+    if (question.type === 'equipment_checklist') {
+      let items = [];
+      let custom = [];
+      try { items = window.ANSWERS[id + '_items'] ? JSON.parse(window.ANSWERS[id + '_items']) : []; } catch { items = []; }
+      try { custom = window.ANSWERS[id + '_other_items'] ? JSON.parse(window.ANSWERS[id + '_other_items']) : []; } catch { custom = []; }
+      return items.concat(custom.filter(entry => entry && entry.name && !items.some(item => String((item && item.name) || item || '').toLowerCase() === String(entry.name).toLowerCase())));
+    }
+    if (question.type === 'recurring_cost_calculator') {
+      const mix = window.RECURRING_MIXES && window.RECURRING_MIXES[id];
+      if (!mix) return null;
+      return {
+        run: window.ANSWERS[id + '_run'] || '',
+        flow: window.ANSWERS[id + '_flow'] || '',
+        gradientFlow: window.ANSWERS[id + '_gradient_flow'] || '',
+        gradientMode: mix.gradientMode || 'isocratic',
+        normalPhaseSolvents: mix.normalPhaseSolvents || [],
+        reversePhaseSolvents: mix.reversePhaseSolvents || [],
+        buffers: mix.buffers || [],
+        modifiers: mix.modifiers || [],
+        gradientRows: mix.gradientRows || [],
+        total: window.ANSWERS[id] || ''
+      };
+    }
+    return window.ANSWERS[id] ?? null;
   }
 
   function buildQuestionnaireJson() {
@@ -65,6 +109,13 @@
     const questions = [];
     window.QUESTION_AREAS.forEach(area => {
       (area.questions || []).forEach(question => {
+        const answerFormat = question.type === 'equipment_dropdown' || question.type === 'column_selector'
+          ? '{ category, name, price? }'
+          : question.type === 'equipment_checklist'
+            ? '[string] or [{ name, amount, price? }]'
+            : question.type === 'recurring_cost_calculator'
+              ? '{ run, flow, gradientMode, gradientFlow?, normalPhaseSolvents: [{name,percent,price}], reversePhaseSolvents: [...], buffers: [{name,amountMgPerL,price}], modifiers: [...], gradientRows: [{from,to,values:{A,B}}] }'
+              : 'single value';
         questions.push({
           section: area.title,
           id: question.id,
@@ -74,11 +125,8 @@
           required: Boolean(question.required),
           helpText: question.help_text || '',
           availableAnswers: getAvailableAnswers(question),
-          answerFormat: question.type === 'equipment_dropdown' ? '{ category, name, price? }'
-            : question.type === 'column_selector' ? '{ category, name, price? }'
-              : question.type === 'equipment_checklist' ? '[string] or [{ name, amount }]'
-                : 'single value',
-          value: window.ANSWERS[question.id] ?? null
+          answerFormat,
+          value: getQuestionExportValue(question)
         });
       });
     });
@@ -125,6 +173,16 @@
       window.ANALYSIS_MODE = document.analysisMode;
     }
 
+    const requiredIds = (window.QUESTION_AREAS || []).flatMap(area => (area.questions || [])
+      .filter(question => question && question.type !== 'label' && question.required)
+      .map(question => question.id));
+    const answered = new Set(Object.keys(importedAnswers).map(key => key.replace(/_(items|total|name|type|run|flow|gradient_flow|gradient_mode|normal_phase_solvent_entries|reverse_phase_solvent_entries|solvent_entries|buffer_entries|modifier_entries|gradient_rows|price|grams|link)$/, '')));
+    const unfilled = requiredIds.filter(id => !answered.has(id));
+    console.info('[PharmaScore] Imported questionnaire answers:', {
+      importedAnswerKeys: Object.keys(importedAnswers).length,
+      unfilledRequired: unfilled
+    });
+
     if (typeof window.renderQuestions === 'function') window.renderQuestions();
     if (typeof window.restoreCurrentTabAnswers === 'function') window.restoreCurrentTabAnswers();
     if (typeof window.updateSectionTitle === 'function') window.updateSectionTitle();
@@ -132,6 +190,7 @@
     if (typeof window.updateNavButtons === 'function') window.updateNavButtons();
     if (typeof window.checkFormValidity === 'function') window.checkFormValidity();
     if (typeof window.updateCurrentSectionScore === 'function') window.updateCurrentSectionScore();
+    if (typeof window.autoFillMissingOtherPrices === 'function') window.autoFillMissingOtherPrices();
     return buildQuestionnaireJson();
   }
 
@@ -140,19 +199,38 @@
     questions.forEach(question => {
       const value = answers[question.id];
       if (value === undefined || value === null) return;
+      if ((question.type === 'dropdown' || question.type === 'csv_dropdown') && typeof value === 'string') {
+        const available = getAvailableAnswers(question).filter(item => typeof item === 'string');
+        const matched = findBestLabel(available, value);
+        answers[question.id] = matched || value;
+        return;
+      }
+      if (question.type === 'boolean' && (value === true || value === false)) {
+        answers[question.id] = value ? 'true' : 'false';
+        return;
+      }
       if (question.type === 'equipment_dropdown' && value && typeof value === 'object') {
         const ids = window.getEquipmentDropdownIds(question.id);
-        const category = String(value.category || value.type || '').trim();
         const name = String(value.name || value.instrument || '').trim();
         const match = findBestOption(window.INSTRUMENT_OPTIONS || [], name, 'name');
-        const selectedCategory = match ? String(match.type || '') : category;
-        const selectedName = match ? String(match.name || '') : name;
-        answers[ids.typeId] = selectedCategory === 'Other' || !selectedCategory ? '__other__' : selectedCategory;
+        let selectedCategory;
+        let selectedName;
+        if (match) {
+          selectedCategory = String(match.type || '');
+          selectedName = String(match.name || '');
+        } else if (name) {
+          selectedCategory = '__other__';
+          selectedName = name;
+        } else {
+          delete answers[question.id];
+          return;
+        }
+        answers[ids.typeId] = selectedCategory;
         answers[ids.nameId] = selectedName;
-        answers[question.id + '_type'] = answers[ids.typeId];
+        answers[question.id + '_type'] = selectedCategory;
         answers[question.id + '_name'] = selectedName;
-        const otherPrice = value.price !== undefined && answers[ids.typeId] === '__other__' ? String(value.price) : null;
-        console.info('[PharmaScore] Normalized equipment dropdown:', { id: question.id, category, name });
+        const otherPrice = value.price !== undefined && selectedCategory === '__other__' ? String(value.price) : null;
+        console.info('[PharmaScore] Normalized equipment dropdown:', { id: question.id, category: selectedCategory, name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         if (otherPrice !== null) answers[question.id] = otherPrice;
         return;
@@ -166,21 +244,30 @@
         answers[ids.nameId] = selectedName;
         answers[question.id + '_type'] = answers[ids.typeId];
         answers[question.id + '_name'] = selectedName;
-        console.info('[PharmaScore] Mapped equipment dropdown value:', { id: question.id, category: answers[ids.typeId], name: selectedName });
+        console.info('[PharmaScore] Mapped equipment dropdown value:', { id: question.id, category: answers[ids.typeId], name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         return;
       }
       if (question.type === 'column_selector' && value && typeof value === 'object') {
         const ids = window.getColumnSelectorIds(question.id);
-        const category = String(value.category || value.type || '').trim();
         const name = String(value.name || value.column || '').trim();
         const match = findBestOption(window.COLUMN_OPTIONS || [], name, 'fullName');
-        const selectedCategory = match ? String(match.type || '') : category;
-        const selectedName = match ? String(match.fullName || '') : name;
-        answers[ids.columnTypeId] = selectedCategory === 'Other' || !selectedCategory ? '__other__' : selectedCategory;
+        let selectedCategory;
+        let selectedName;
+        if (match) {
+          selectedCategory = String(match.type || '');
+          selectedName = String(match.fullName || '');
+        } else if (name) {
+          selectedCategory = '__other__';
+          selectedName = name;
+        } else {
+          delete answers[question.id];
+          return;
+        }
+        answers[ids.columnTypeId] = selectedCategory;
         answers[ids.columnNameId] = selectedName;
-        const otherPrice = value.price !== undefined && answers[ids.columnTypeId] === '__other__' ? String(value.price) : null;
-        console.info('[PharmaScore] Normalized column dropdown:', { id: question.id, category, name });
+        const otherPrice = value.price !== undefined && selectedCategory === '__other__' ? String(value.price) : null;
+        console.info('[PharmaScore] Normalized column dropdown:', { id: question.id, category: selectedCategory, name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         if (otherPrice !== null) answers[question.id] = otherPrice;
         return;
@@ -192,8 +279,40 @@
         const selectedName = match ? String(match.fullName) : name;
         answers[ids.columnTypeId] = match ? String(match.type || '') : '__other__';
         answers[ids.columnNameId] = selectedName;
-        console.info('[PharmaScore] Mapped column dropdown value:', { id: question.id, category: answers[ids.columnTypeId], name: selectedName });
+        console.info('[PharmaScore] Mapped column dropdown value:', { id: question.id, category: answers[ids.columnTypeId], name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
+        return;
+      }
+      if (question.type === 'recurring_cost_calculator' && value && typeof value === 'object' && !Array.isArray(value)) {
+        const comp = value;
+        const toEntries = (list, kind) => (Array.isArray(list) ? list : []).map(entry => {
+          const name = String((entry && entry.name) || '').trim();
+          if (!name) return null;
+          const price = Number((entry && entry.price) || 0);
+          const stamp = `${kind}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+          if (kind === 'solvent') {
+            const percent = Number((entry && entry.percent) ?? 0);
+            return { id: stamp, name, percent, amountMgPerL: 0, price, disclaimer: (entry && entry.disclaimer) || '', gradientLetter: '', cost: price * (percent / 100) };
+          }
+          const amountMgPerL = Number((entry && entry.amountMgPerL) ?? (entry && entry.percent) ?? 0);
+          return { id: stamp, name, percent: amountMgPerL, amountMgPerL, price, disclaimer: (entry && entry.disclaimer) || '', gradientLetter: '', cost: 0 };
+        }).filter(Boolean);
+        const normal = toEntries(comp.normalPhaseSolvents, 'solvent');
+        const reverse = toEntries(comp.reversePhaseSolvents, 'solvent');
+        const buffers = toEntries(comp.buffers, 'buffer');
+        const modifiers = toEntries(comp.modifiers, 'modifier');
+        const gradientRows = Array.isArray(comp.gradientRows) && comp.gradientRows.length ? comp.gradientRows : [{ from: 0, to: 10, values: {} }];
+        answers[question.id + '_run'] = comp.run !== undefined ? String(comp.run) : (answers[question.id + '_run'] || '');
+        answers[question.id + '_flow'] = comp.flow !== undefined ? String(comp.flow) : (answers[question.id + '_flow'] || '');
+        answers[question.id + '_gradient_flow'] = comp.gradientFlow !== undefined ? String(comp.gradientFlow) : (comp.flow !== undefined ? String(comp.flow) : (answers[question.id + '_gradient_flow'] || ''));
+        answers[question.id + '_gradient_mode'] = comp.gradientMode === 'gradient' ? 'gradient' : 'isocratic';
+        answers[question.id + '_normal_phase_solvent_entries'] = JSON.stringify(normal);
+        answers[question.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reverse);
+        answers[question.id + '_buffer_entries'] = JSON.stringify(buffers);
+        answers[question.id + '_modifier_entries'] = JSON.stringify(modifiers);
+        answers[question.id + '_gradient_rows'] = JSON.stringify(gradientRows);
+        answers[question.id] = comp.total !== undefined ? String(comp.total) : (answers[question.id] || '');
+        console.info('[PharmaScore] Normalized recurring cost calculator:', { id: question.id, normal: normal.length, reverse: reverse.length, buffers: buffers.length, modifiers: modifiers.length, gradientMode: answers[question.id + '_gradient_mode'] });
         return;
       }
       if (question.type === 'equipment_checklist' && Array.isArray(value)) {

@@ -1836,142 +1836,139 @@
 
   function debugAutofillAllQuestions() {
     if (!QUESTION_AREAS || !QUESTION_AREAS.length) return;
-    const sampledEnumValues = { dropdown: ['Yes', 'No'], number: 12, text: 'debug' };
+    const answers = {};
 
     QUESTION_AREAS.forEach(area => {
       (area.questions || []).forEach(q => {
         if (!q || q.type === 'label') return;
 
         if (q.type === 'dropdown') {
-          const opts = typeof q.options === 'string' ? q.options.split(';').filter(Boolean) : [];
-          const value = opts[0] || sampledEnumValues.dropdown[0];
-          ANSWERS[q.id] = value;
-          const el = document.getElementById(q.id);
-          if (el && value) el.value = value;
+          const opts = typeof q.options === 'string' ? q.options.split(';').map(s => s.trim()).filter(Boolean) : (Array.isArray(q.options) ? q.options : []);
+          answers[q.id] = opts[0] || 'Yes';
+          return;
+        }
+
+        if (q.type === 'csv_dropdown') {
+          const params = typeof q.params === 'string' ? (() => { try { return JSON.parse(q.params); } catch { return {}; } })() : (q.params || {});
+          const source = Array.isArray(window[params.source || 'SAMPLE_ANALYSIS_RESULTS_OPTIONS']) ? window[params.source || 'SAMPLE_ANALYSIS_RESULTS_OPTIONS'] : [];
+          const first = source[0];
+          if (first) answers[q.id] = String(first[params.valueField || 'value'] ?? first.value ?? first.difficulty ?? first.sample ?? '');
           return;
         }
 
         if (q.type === 'boolean') {
-          ANSWERS[q.id] = 'true';
-          const el = document.getElementById(q.id + '_true');
-          if (el) el.checked = true;
+          answers[q.id] = 'true';
           return;
         }
 
         if (q.type === 'number') {
-          const value = String(sampledEnumValues.number);
-          ANSWERS[q.id] = value;
-          const el = document.getElementById(q.id);
-          if (el) el.value = value;
+          answers[q.id] = String(12);
           return;
         }
 
         if (q.type === 'text') {
-          const value = sampledEnumValues.text + '-' + q.id;
-          ANSWERS[q.id] = value;
-          const el = document.getElementById(q.id);
-          if (el) el.value = value;
+          answers[q.id] = 'debug-' + q.id;
           return;
         }
 
         if (q.type === 'equipment_dropdown') {
-          const ids = getEquipmentDropdownIds(q.id);
-          const typeEl = document.getElementById(ids.typeId);
-          const nameEl = document.getElementById(ids.nameId);
-          if (typeEl && typeEl.options.length > 1) {
-            typeEl.value = typeEl.options[1].value;
-            typeEl.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          if (nameEl && nameEl.options.length > 1) {
-            nameEl.value = nameEl.options[1].value;
-            nameEl.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          return;
-        }
-
-        if (q.type === 'equipment_checklist') {
-          const list = document.getElementById(q.id + '_equipment_list');
-          if (list) {
-            const boxes = list.querySelectorAll('input[type="checkbox"]');
-            boxes.forEach((box, idx) => {
-              box.checked = idx === 0 || idx === 1;
-              box.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-            if (isSamplePretreatmentChecklist(q.id)) {
-              Array.from(boxes).forEach(box => {
-                const amountInputId = box.getAttribute('data-amount-input-id');
-                const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
-                const amountRow = amountEl ? amountEl.closest('.sample-pretreat-amount-row') : null;
-                if (amountRow) amountRow.classList.toggle('hidden', !box.checked);
-                if (amountEl && box.checked) amountEl.value = '1';
-              });
-              const selectedItems = Array.from(boxes).filter(b => b.checked).map(b => ({ name: b.value, amount: 1 }));
-              ANSWERS[q.id + '_items'] = JSON.stringify(selectedItems);
-              updateEquipmentChecklistTotal(q.id);
-            } else {
-              const total = Array.from(boxes).filter(b => b.checked).reduce((sum, b) => sum + Number(b.getAttribute('data-price') || 0), 0);
-              ANSWERS[q.id] = String(total);
-              ANSWERS[q.id + '_items'] = JSON.stringify(Array.from(boxes).filter(b => b.checked).map(b => b.value));
-              ANSWERS[q.id + '_total'] = String(total);
-              const totalEl = document.getElementById(q.id + '_total');
-              if (totalEl) totalEl.value = String(total);
-            }
-          }
+          const instruments = Array.isArray(window.INSTRUMENT_OPTIONS) ? window.INSTRUMENT_OPTIONS : [];
+          if (instruments.length) answers[q.id] = { category: instruments[0].type || 'Other', name: instruments[0].name };
           return;
         }
 
         if (q.type === 'column_selector') {
-          const ids = getColumnSelectorIds(q.id);
-          const typeEl = document.getElementById(ids.columnTypeId);
-          const nameEl = document.getElementById(ids.columnNameId);
-          if (typeEl && typeEl.options.length > 1) {
-            typeEl.value = typeEl.options[1].value;
-            typeEl.dispatchEvent(new Event('change', { bubbles: true }));
-            populateColumnNames(q.id, typeEl.value, ids); 
-          }
-          if (nameEl && nameEl.options.length > 1) {
-            nameEl.value = nameEl.options[1].value;
-            nameEl.dispatchEvent(new Event('change', { bubbles: true }));
-            updateColumnSelectorTotal(q.id);
+          const columns = Array.isArray(window.COLUMN_OPTIONS) ? window.COLUMN_OPTIONS : [];
+          if (columns.length) answers[q.id] = { category: columns[0].type || 'Other', name: columns[0].fullName || columns[0].name };
+          return;
+        }
+
+        if (q.type === 'equipment_checklist') {
+          const options = typeof window.getAuxiliaryEquipmentOptions === 'function' ? window.getAuxiliaryEquipmentOptions(q.id) : [];
+          const selected = options.slice(0, 2).map(item => item.name).filter(Boolean);
+          if (isSamplePretreatmentChecklist(q.id)) {
+            answers[q.id] = selected.map(name => ({ name, amount: 1 }));
+          } else {
+            answers[q.id] = selected;
           }
           return;
         }
 
         if (q.type === 'recurring_cost_calculator') {
-          const ids = getRecurringCostIds(q.id);
-          const runEl = document.getElementById(ids.runId);
-          const flowEl = document.getElementById(ids.flowId);
-          if (runEl) runEl.value = '30';
-          if (flowEl) flowEl.value = '1.2';
-          const normalSelect = document.getElementById(ids.normalPhaseSelectId);
-          const normalPct = document.getElementById(ids.normalPhasePctId);
-          if (normalSelect && normalSelect.options.length > 1) {
-            normalSelect.value = normalSelect.options[1].value;
-            if (normalPct) normalPct.value = '50';
-            addRecurringEntry(q.id, 'normal_phase_solvent');
-          }
-          const bufferSelect = document.getElementById(ids.bufferSelectId);
-          const bufferPct = document.getElementById(ids.bufferPctId);
-          if (bufferSelect && bufferSelect.options.length > 1) {
-            const waterPresent = (bufferSelect.options[1].text || '').toLowerCase().includes('water');
-            if (waterPresent) {
-              bufferSelect.value = bufferSelect.options[1].value;
-              if (bufferPct) bufferPct.value = '10';
-              addRecurringEntry(q.id, 'buffer');
-            }
-          }
-          const modifierSelect = document.getElementById(ids.modifierSelectId);
-          const modifierPct = document.getElementById(ids.modifierPctId);
-          if (modifierSelect && modifierSelect.options.length > 1) {
-            modifierSelect.value = modifierSelect.options[1].value;
-            if (modifierPct) modifierPct.value = '0.1';
-            addRecurringEntry(q.id, 'modifier');
-          }
-          updateRecurringCostTotal(q.id);
+          const normal = (Array.isArray(SOLVENT_OPTIONS) ? SOLVENT_OPTIONS : []).filter(item => String(item.phase || '').toLowerCase() === 'normal');
+          const reverse = (Array.isArray(SOLVENT_OPTIONS) ? SOLVENT_OPTIONS : []).filter(item => String(item.phase || '').toLowerCase() === 'reverse');
+          const buffers = Array.isArray(BUFFER_OPTIONS) ? BUFFER_OPTIONS : [];
+          const makeEntry = (name, price, percent, category) => ({
+            id: `${category}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+            name,
+            percent,
+            amountMgPerL: 0,
+            price,
+            disclaimer: '',
+            gradientLetter: '',
+            cost: price * (percent / 100)
+          });
+          const normalEntries = normal.length ? [makeEntry(normal[0].name, normal[0].price, 50, 'normal_phase_solvent')] : [];
+          const reverseEntries = reverse.length ? [makeEntry(reverse[0].name, reverse[0].price, 50, 'reverse_phase_solvent')] : [];
+          const bufferEntries = buffers.length ? [makeEntry(buffers[0].name, buffers[0].price, 10, 'buffer')] : [];
+          answers[q.id + '_run'] = '30';
+          answers[q.id + '_flow'] = '1.2';
+          answers[q.id + '_gradient_flow'] = '1.2';
+          answers[q.id + '_gradient_mode'] = 'isocratic';
+          answers[q.id + '_normal_phase_solvent_entries'] = JSON.stringify(normalEntries);
+          answers[q.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reverseEntries);
+          answers[q.id + '_buffer_entries'] = JSON.stringify(bufferEntries);
+          answers[q.id + '_modifier_entries'] = JSON.stringify([]);
+          answers[q.id + '_gradient_rows'] = JSON.stringify([{ from: 0, to: 10, values: { A: 50, B: 50 } }]);
+          return;
         }
       });
     });
+
+    console.info('[PharmaScore] Debug autofill answers:', answers);
+    if (typeof window.importQuestionnaireJson === 'function') {
+      window.importQuestionnaireJson({ answers });
+    } else {
+      window.ANSWERS = answers;
+      if (window.renderQuestions) window.renderQuestions();
+      if (window.restoreCurrentTabAnswers) window.restoreCurrentTabAnswers();
+    }
     checkFormValidity();
+  }
+
+  async function autoFillMissingOtherPrices() {
+    if (typeof window.lookupChemicalPrice !== 'function') return;
+    const questions = (QUESTION_AREAS || []).flatMap(area => area.questions || []);
+    const pending = [];
+    questions.forEach(q => {
+      if (q.type === 'equipment_dropdown') {
+        const ids = getEquipmentDropdownIds(q.id);
+        const name = ANSWERS[ids.nameId];
+        if (ANSWERS[ids.typeId] === '__other__' && name && (ANSWERS[q.id] === undefined || ANSWERS[q.id] === '')) {
+          pending.push({ q, name, update: () => updateInstrumentDropdownTotal(q.id, ids) });
+        }
+      }
+      if (q.type === 'column_selector') {
+        const ids = getColumnSelectorIds(q.id);
+        const name = ANSWERS[ids.columnNameId];
+        if (ANSWERS[ids.columnTypeId] === '__other__' && name && (ANSWERS[q.id] === undefined || ANSWERS[q.id] === '')) {
+          pending.push({ q, name, update: () => updateColumnSelectorTotal(q.id, ids) });
+        }
+      }
+    });
+    for (const item of pending) {
+      try {
+        const result = await window.lookupChemicalPrice(item.name, 'US', 'item', item.q.text || item.q.id || '');
+        if (result && result.success) {
+          ANSWERS[item.q.id] = String(result.price);
+          ANSWERS[item.q.id + '_total'] = String(result.price);
+          const priceEl = document.getElementById(`${item.q.id}_other_price`);
+          if (priceEl) priceEl.value = String(result.price);
+          item.update();
+          console.info('[PharmaScore] Auto-filled Other price:', { id: item.q.id, name: item.name, price: result.price });
+        }
+      } catch { /* leave for manual query */ }
+    }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -2058,6 +2055,7 @@
     updateSectionGuidance: { value: updateSectionGuidance, configurable: true },
     updateCurrentSectionScore: { value: updateCurrentSectionScore, configurable: true },
     updateHazardScore: { value: updateHazardScore, configurable: true },
+    autoFillMissingOtherPrices: { value: autoFillMissingOtherPrices, configurable: true },
     isFixedCostsArea: { value: isFixedCostsArea, configurable: true },
     getFixedCostSubTab: { value: getFixedCostSubTab, configurable: true },
     getQuestionsForCurrentView: { value: getQuestionsForCurrentView, configurable: true },
