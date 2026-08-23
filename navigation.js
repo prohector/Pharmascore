@@ -30,6 +30,7 @@
         const listEl = document.getElementById(q.id + '_equipment_list');
         const totalEl = document.getElementById(q.id + '_total');
         if (!listEl) return;
+        if (typeof window.syncCustomChecklistAnswers === 'function') window.syncCustomChecklistAnswers(q.id);
         const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
         const selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
         const selectedItems = selected.map(cb => {
@@ -173,6 +174,17 @@
         if (listEl) {
           let saved = [];
           try { saved = ANSWERS[q.id + '_items'] ? JSON.parse(ANSWERS[q.id + '_items']) : []; } catch (e) { saved = []; }
+          let customItems = [];
+          try { customItems = ANSWERS[q.id + '_other_items'] ? JSON.parse(ANSWERS[q.id + '_other_items']) : []; } catch { customItems = []; }
+          if (typeof window.addChecklistOtherItem === 'function') {
+            customItems.forEach(entry => window.addChecklistOtherItem(q.id, entry.name, Number(entry.price || 0), isSamplePretreatment, Number(entry.amount || 1)));
+          }
+          const builtInNames = new Set(Array.from(listEl.querySelectorAll('input[type="checkbox"]')).map(cb => cb.value.toLowerCase()));
+          if (typeof window.addChecklistOtherItem === 'function') {
+            saved.filter(entry => entry && typeof entry === 'object' && entry.name && !builtInNames.has(String(entry.name).toLowerCase()))
+              .filter(entry => !customItems.some(custom => String(custom.name).toLowerCase() === String(entry.name).toLowerCase()))
+              .forEach(entry => window.addChecklistOtherItem(q.id, entry.name, Number(entry.price || 0), isSamplePretreatment));
+          }
           const savedAmountsByName = new Map();
           if (isSamplePretreatment) {
             saved.forEach(entry => {

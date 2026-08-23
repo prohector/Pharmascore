@@ -776,6 +776,7 @@
         mix.gradientRows = rows;
         renderGradientTable(questionId);
         updateRecurringCostTotal(questionId);
+        updateHazardScore();
       });
     });
 
@@ -802,11 +803,24 @@
     const solventEntries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
     const water = solventEntries.find(entry => /water/i.test(String(entry.name || '')));
     const breakdown = [];
+    let previousTo = null;
     rows.forEach((row, index) => {
-      const duration = Math.max(0, Number(row.to || 0) - Number(row.from || 0));
+      const from = Number(row.from);
+      const to = Number(row.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || (previousTo !== null && from < previousTo)) {
+        console.warn('[PharmaScore] Invalid gradient time row:', { segment: index + 1, from, to });
+        previousTo = to;
+        return;
+      }
+      const duration = to - from;
+      previousTo = to;
       if (!duration || !flowRate) return;
       const volumeMl = duration * flowRate;
       const values = row.values || {};
+      const totalPercent = assignmentsForRow(assignmentsFromMix(mix), values);
+      if (totalPercent > 0 && Math.abs(totalPercent - 100) > 0.01) {
+        console.warn('[PharmaScore] Gradient concentrations do not sum to 100%:', { segment: index + 1, totalPercent });
+      }
       solventEntries.forEach(entry => {
         const percent = Number(values[entry.gradientLetter] ?? entry.percent ?? 0);
         const cost = volumeMl * (percent / 100) * Number(entry.price || 0);
@@ -823,8 +837,41 @@
     return breakdown;
   }
 
+  function assignmentsFromMix(mix) {
+    return [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
+  }
+
+  function assignmentsForRow(entries, values) {
+    return entries.reduce((sum, entry) => sum + Number(values[entry.gradientLetter] ?? entry.percent ?? 0), 0);
+  }
+
   function calculateGradientCost(questionId, flowRate) {
+    const validation = validateGradientProfile(questionId, flowRate);
+    if (!validation.valid) {
+      console.warn('[PharmaScore] Gradient profile is incomplete:', validation.errors);
+      return 0;
+    }
     return getGradientCostBreakdown(questionId, flowRate).reduce((sum, item) => sum + item.costEUR, 0);
+  }
+
+  function validateGradientProfile(questionId, flowRate) {
+    const mix = getRecurringMix(questionId);
+    const rows = Array.isArray(mix.gradientRows) ? mix.gradientRows : [];
+    const entries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
+    const errors = [];
+    if (!Number.isFinite(flowRate) || flowRate <= 0) errors.push('Enter a positive gradient flow rate.');
+    if (!entries.length) errors.push('Add at least one solvent before calculating a gradient.');
+    let previousTo = null;
+    rows.forEach((row, index) => {
+      const from = Number(row.from);
+      const to = Number(row.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) errors.push(`Time row ${index + 1} must have a positive duration.`);
+      if (previousTo !== null && from !== previousTo) errors.push(`Time row ${index + 1} must start at the previous row end time.`);
+      previousTo = to;
+      const totalPercent = assignmentsForRow(entries, row.values || {});
+      if (Math.abs(totalPercent - 100) > 0.01) errors.push(`Time row ${index + 1} solvent percentages must total 100%.`);
+    });
+    return { valid: errors.length === 0, errors };
   }
 
   function parseRecurringEntries(rawValue) {
@@ -915,6 +962,125 @@
     if (questionId === 'sample_pretreat_reagent') return 'Weight (g per sample)';
     if (unit) return `Amount (${unit} per sample)`;
     return 'Amount (per sample)';
+  }
+
+  function renderChecklistOtherControls(questionId, isSamplePretreatment, unit) {
+    const lookupUnit = unit === 'mL' ? 'ml' : unit === 'g' ? 'g' : 'item';
+    return `
+      <div class="checklist-other-controls" data-checklist-other="${questionId}" data-unit="${lookupUnit}" data-sample="${isSamplePretreatment ? 'true' : 'false'}">
+        <button type="button" class="checklist-other-add-btn">Add other</button>
+        <button type="button" class="recurring-add-btn checklist-other-query-all hidden">Query all</button>
+        <div class="checklist-other-rows"></div>
+        <small class="checklist-other-limit">Up to 5 additional items.</small>
+      </div>`;
+  }
+
+  function addChecklistOtherRow(questionId) {
+    const controls = document.querySelector(`[data-checklist-other="${questionId}"]`);
+    if (!controls) return;
+    const rows = controls.querySelector('.checklist-other-rows');
+    if (!rows || rows.children.length >= 5) return;
+    const row = document.createElement('div');
+    row.className = 'checklist-other-row';
+    row.innerHTML = `
+      <input type="text" class="form-input checklist-other-name" placeholder="Name of item">
+      <input type="number" min="0" step="any" class="form-input checklist-other-price hidden" placeholder="Price (EUR)">
+      <button type="button" class="recurring-remove-btn checklist-other-remove">Remove</button>
+      <small class="checklist-other-message" aria-live="polite"></small>`;
+    rows.appendChild(row);
+    const queryAll = controls.querySelector('.checklist-other-query-all');
+    if (queryAll) queryAll.classList.remove('hidden');
+    const price = row.querySelector('.checklist-other-price');
+    price.addEventListener('input', () => {
+      const name = row.querySelector('.checklist-other-name').value.trim();
+      const value = Number(price.value);
+      if (name && Number.isFinite(value) && value > 0) addChecklistOtherItem(questionId, name, value, controls.dataset.sample === 'true');
+    });
+    row.querySelector('.checklist-other-remove').addEventListener('click', () => {
+      row.remove();
+      if (!rows.children.length && queryAll) queryAll.classList.add('hidden');
+    });
+  }
+
+  async function queryChecklistOtherItems(questionId) {
+    const controls = document.querySelector(`[data-checklist-other="${questionId}"]`);
+    if (!controls) return;
+    const rows = Array.from(controls.querySelectorAll('.checklist-other-row'));
+    const queryButton = controls.querySelector('.checklist-other-query-all');
+    const unit = controls.dataset.unit || 'item';
+    if (!rows.length) return;
+    queryButton.disabled = true;
+    for (const row of rows) {
+      const name = row.querySelector('.checklist-other-name').value.trim();
+      const price = row.querySelector('.checklist-other-price');
+      const message = row.querySelector('.checklist-other-message');
+      if (!name) {
+        message.textContent = 'Enter a name before querying.';
+        continue;
+      }
+      message.textContent = 'Querying price...';
+      const result = await window.lookupChemicalPrice(name, 'US', unit, document.getElementById(`${questionId}_label`)?.textContent || questionId);
+      price.classList.remove('hidden');
+      if (!result.success) {
+        message.textContent = result.error || 'No reliable estimate found. Enter a price manually.';
+        continue;
+      }
+      price.value = String(result.price);
+      message.textContent = `${result.disclaimer || 'AI-estimated price. Verify before relying on it.'} You can edit the price.`;
+      addChecklistOtherItem(questionId, name, Number(result.price), controls.dataset.sample === 'true');
+    }
+    queryButton.disabled = false;
+  }
+
+  function addChecklistOtherItem(questionId, name, price, isSamplePretreatment, amount = 1) {
+    const list = document.getElementById(`${questionId}_equipment_list`);
+    if (!list || !name || !Number.isFinite(price) || price <= 0) return;
+    const existing = Array.from(list.querySelectorAll('input[type="checkbox"]')).find(box => box.value.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.checked = true;
+      updateEquipmentChecklistTotal(questionId);
+      syncCustomChecklistAnswers(questionId);
+      return;
+    }
+    const slug = `${name}_${Date.now()}`.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+    const optionId = `${questionId}_other_${slug}`;
+    const amountInputId = `${optionId}_amount`;
+    const unit = isSamplePretreatment ? (questionId === 'sample_pretreat_solvent' ? 'mL' : questionId === 'sample_pretreat_reagent' ? 'g' : 'item') : 'item';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'equipment-check-item-wrap';
+    wrapper.dataset.customOther = 'true';
+    wrapper.innerHTML = `
+      <label class="equipment-check-item" for="${optionId}">
+        <input id="${optionId}" type="checkbox" value="${name.replace(/"/g, '&quot;')}" data-price="${price}" data-amount-input-id="${amountInputId}" checked>
+        <span class="equipment-check-name">${name} (Other)</span>
+      </label>
+      ${isSamplePretreatment ? `<div class="sample-pretreat-amount-row"><label for="${amountInputId}" class="input-label-small">${getSamplePretreatmentAmountLabel(questionId, unit)}</label><input id="${amountInputId}" type="number" min="0" step="any" class="form-input sample-pretreat-amount-input" value="${Number(amount) || 1}"></div>` : ''}`;
+    list.appendChild(wrapper);
+    const checkbox = wrapper.querySelector('input[type="checkbox"]');
+    checkbox.addEventListener('change', () => updateEquipmentChecklistTotal(questionId));
+    const amountInput = wrapper.querySelector('.sample-pretreat-amount-input');
+    if (amountInput) amountInput.addEventListener('input', () => {
+      updateEquipmentChecklistTotal(questionId);
+      updateHazardScore();
+    });
+    updateEquipmentChecklistTotal(questionId);
+    syncCustomChecklistAnswers(questionId);
+    updateHazardScore();
+  }
+
+  function syncCustomChecklistAnswers(questionId) {
+    const list = document.getElementById(`${questionId}_equipment_list`);
+    if (!list) return;
+    const customItems = Array.from(list.querySelectorAll('[data-custom-other="true"]')).map(wrapper => {
+      const checkbox = wrapper.querySelector('input[type="checkbox"]');
+      const amount = wrapper.querySelector('.sample-pretreat-amount-input');
+      return {
+        name: checkbox?.value || '',
+        price: Number(checkbox?.dataset.price || 0),
+        amount: amount ? Number(amount.value || 0) : 1
+      };
+    }).filter(item => item.name);
+    ANSWERS[`${questionId}_other_items`] = JSON.stringify(customItems);
   }
 
   function updateEquipmentChecklistTotal(questionId) {
@@ -1038,6 +1204,7 @@
     renderRecurringList(questionId, category);
     renderGradientTable(questionId);
     updateRecurringCostTotal(questionId);
+    updateHazardScore();
   }
 
   function updateRecurringCostTotal(questionId) {
@@ -1072,6 +1239,44 @@
     }
     ANSWERS[questionId] = totalEl && totalEl.value ? totalEl.value : '';
     ANSWERS[questionId + '_total'] = totalEl && totalEl.value ? totalEl.value : '';
+  }
+
+  function updateHazardScore() {
+    const totalEl = document.getElementById('green2');
+    if (!totalEl) return;
+    const solventByName = new Map((SOLVENT_OPTIONS || []).map(item => [normalizeRecurringEntryName(item.name), item]));
+    const findSolventReference = name => solventByName.get(normalizeRecurringEntryName(name)) || (SOLVENT_OPTIONS || []).find(item => {
+      const left = normalizeRecurringEntryName(item.name).replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '');
+      const right = normalizeRecurringEntryName(name).replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '');
+      return left && right && (left.includes(right) || right.includes(left));
+    });
+    let hazard = 0;
+    const details = [];
+    const mix = getRecurringMix('econ_rec1');
+    const runTime = Number(document.getElementById('econ_rec1_run')?.value || 0) || 0;
+    const flowRate = Number(document.getElementById('econ_rec1_flow')?.value || 0) || 0;
+    [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])].forEach(entry => {
+      const reference = findSolventReference(entry.name);
+      const volumeMl = runTime * flowRate * Number(entry.percent || 0) / 100;
+      const nfpa = Number(reference?.nfpa || entry.nfpa || 0);
+      hazard += nfpa * volumeMl;
+      details.push({ source: 'mobile phase', solvent: entry.name, nfpa, volumeMl, hazard: nfpa * volumeMl });
+    });
+    ['sample_pretreat_solvent'].forEach(questionId => {
+      const list = document.getElementById(`${questionId}_equipment_list`);
+      list?.querySelectorAll('input[type="checkbox"]:checked').forEach(box => {
+        const amount = Number(document.getElementById(box.dataset.amountInputId)?.value || 0) || 0;
+        const reference = findSolventReference(box.value);
+        const nfpa = Number(reference?.nfpa || 0);
+        hazard += nfpa * amount;
+        details.push({ source: 'sample pretreatment', solvent: box.value, nfpa, volumeMl: amount, hazard: nfpa * amount });
+      });
+    });
+    totalEl.value = hazard.toFixed(2);
+    ANSWERS.green2 = totalEl.value;
+    ANSWERS.green2_total = totalEl.value;
+    console.table(details);
+    console.log('[PharmaScore] NFPA hazard score:', hazard);
   }
 
   function populateColumnNames(questionId, selectedType, ids = getColumnSelectorIds(questionId)) {
@@ -1173,7 +1378,8 @@
         `;
       } else if (q.type === 'number') {
         const unitLabel = formatUnitLabel(getQuestionDisplayUnit(q));
-        input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" required><span class="unit-label">${unitLabel}</span></div>`;
+        const readOnlyHazard = q.id === 'green2';
+        input = `<div class="number-input-wrapper"><input id="${q.id}" name="${q.id}" type="number" min="0" step="any" class="form-input" ${readOnlyHazard ? 'readonly' : 'required'}><span class="unit-label">${unitLabel}</span></div>`;
       } else if (q.type === 'text') {
         input = `<input id="${q.id}" name="${q.id}" type="text" class="form-input" required>`;
       } else if (q.type === 'equipment_dropdown') {
@@ -1207,6 +1413,7 @@
       } else if (q.type === 'equipment_checklist') {
         const equipmentOptions = getAuxiliaryEquipmentOptions(q.id);
         const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
+        const checklistUnit = q.id === 'sample_pretreat_solvent' ? 'mL' : q.id === 'sample_pretreat_reagent' ? 'g' : 'item';
         const equipmentList = equipmentOptions.length ? equipmentOptions.map(item => {
           const optionSlug = String(item.name).replace(/[^a-z0-9]+/gi, '_').toLowerCase();
           const optionId = `${q.id}_${optionSlug}`;
@@ -1235,6 +1442,7 @@
             </button>
             <div id="${q.id}_equipment_panel" class="equipment-checklist-panel ${isFirstChecklistOpen ? '' : 'hidden'}">
               <div id="${q.id}_equipment_list" class="equipment-checklist-list">${equipmentList}</div>
+              ${renderChecklistOtherControls(q.id, isSamplePretreatment, checklistUnit)}
               <div id="${q.id}_equipment_empty" class="equipment-empty hidden">No instruments were loaded from the auxiliary equipment CSV.</div>
               <div class="chem-lookup-total-section">
                 <label for="${q.id}_score" class="input-label-small">${isSamplePretreatment ? 'Total sample pretreatment score' : 'Total auxiliary equipment score'}</label>
@@ -1348,13 +1556,13 @@
               </div>
               <div class="recurring-cost-field ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}">
                 <label for="${ids.bufferPctId}" class="input-label-small">Amount (mg/L in water)</label>
-                <input id="${ids.bufferPctId}" name="${ids.bufferPctId}" type="number" min="0" max="100" step="any" class="form-input" placeholder="10" data-gradient-percent-field="true">
+                <input id="${ids.bufferPctId}" name="${ids.bufferPctId}" type="number" min="0" step="any" class="form-input" placeholder="10" data-gradient-percent-field="true">
               </div>
               <div class="recurring-cost-action">
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="buffer">Add</button>
               </div>
             </div>
-            ${renderOtherLookupControls(`${q.id}_buffer`, 'ml')}
+            ${renderOtherLookupControls(`${q.id}_buffer`, 'g')}
 
             <div class="recurring-cost-grid">
               <div class="recurring-cost-field">
@@ -1366,13 +1574,13 @@
               </div>
               <div class="recurring-cost-field ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}">
                 <label for="${ids.modifierPctId}" class="input-label-small">Amount (mg/L in water)</label>
-                <input id="${ids.modifierPctId}" name="${ids.modifierPctId}" type="number" min="0" max="100" step="any" class="form-input" placeholder="0.1" data-gradient-percent-field="true">
+                <input id="${ids.modifierPctId}" name="${ids.modifierPctId}" type="number" min="0" step="any" class="form-input" placeholder="0.1" data-gradient-percent-field="true">
               </div>
               <div class="recurring-cost-action">
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="modifier">Add</button>
               </div>
             </div>
-            ${renderOtherLookupControls(`${q.id}_modifier`, 'ml')}
+            ${renderOtherLookupControls(`${q.id}_modifier`, 'g')}
 
             <div class="recurring-cost-mix-sections">
               <div class="recurring-cost-list-block">
@@ -1426,6 +1634,7 @@
         </div>
       `;
       form.appendChild(wrapper);
+      if (q.id === 'green2') updateHazardScore();
       const infoButton = wrapper.querySelector('.question-info-button');
       const infoTooltip = wrapper.querySelector('.question-info-tooltip');
       if (infoButton && infoTooltip) {
@@ -1447,6 +1656,12 @@
         const gradientCalculateButton = document.getElementById(`${ids.gradientTableWrapId}_calculate`);
         if (gradientCalculateButton) {
           gradientCalculateButton.addEventListener('click', () => {
+            const flowRate = Number(gradientFlowEl?.value || 0) || 0;
+            const validation = validateGradientProfile(q.id, flowRate);
+            if (!validation.valid) {
+              showRecurringCostMessage(q.id, validation.errors.join(' '), 'error');
+              return;
+            }
             updateRecurringCostTotal(q.id);
             showRecurringCostMessage(q.id, 'Gradient cost calculated. See the browser console for the segment breakdown.', 'success');
           });
@@ -1474,6 +1689,7 @@
         renderRecurringList(q.id, 'modifier');
         applyRecurringModeVisibility(q.id, wrapper);
         updateRecurringCostTotal(q.id);
+        updateHazardScore();
       }
 
       if (q.type === 'equipment_dropdown') {
@@ -1513,6 +1729,10 @@
         const toggle = document.querySelector(`[data-target="${q.id}_equipment_panel"]`);
         const panel = document.getElementById(`${q.id}_equipment_panel`);
         const isSamplePretreatment = isSamplePretreatmentChecklist(q.id);
+        const otherAddButton = document.querySelector(`[data-checklist-other="${q.id}"] .checklist-other-add-btn`);
+        if (otherAddButton) otherAddButton.addEventListener('click', () => addChecklistOtherRow(q.id));
+        const otherQueryAllButton = document.querySelector(`[data-checklist-other="${q.id}"] .checklist-other-query-all`);
+        if (otherQueryAllButton) otherQueryAllButton.addEventListener('click', () => queryChecklistOtherItems(q.id));
         if (toggle && panel) {
           toggle.addEventListener('click', () => {
             const panels = document.querySelectorAll('.equipment-checklist-panel');
@@ -1551,6 +1771,7 @@
               });
               ANSWERS[q.id + '_items'] = JSON.stringify(isSamplePretreatment ? selectedItems : selectedItems.map(item => item.name));
               updateEquipmentChecklistTotal(q.id);
+              updateHazardScore();
             });
           });
           if (isSamplePretreatment) {
@@ -1565,6 +1786,7 @@
                 });
                 ANSWERS[q.id + '_items'] = JSON.stringify(selectedItems);
                 updateEquipmentChecklistTotal(q.id);
+                updateHazardScore();
               });
             });
           }
@@ -1653,15 +1875,16 @@
         }
 
         if (q.type === 'equipment_dropdown') {
-          const select = document.getElementById(q.id);
-          if (select && select.options.length > 1) {
-            select.value = select.options[1].value;
-            const price = Number(select.options[1].getAttribute('data-price') || 0);
-            ANSWERS[q.id + '_name'] = select.options[1].value;
-            ANSWERS[q.id] = String(price);
-            ANSWERS[q.id + '_total'] = String(price);
-            const total = document.getElementById(q.id + '_total');
-            if (total) total.value = String(price);
+          const ids = getEquipmentDropdownIds(q.id);
+          const typeEl = document.getElementById(ids.typeId);
+          const nameEl = document.getElementById(ids.nameId);
+          if (typeEl && typeEl.options.length > 1) {
+            typeEl.value = typeEl.options[1].value;
+            typeEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (nameEl && nameEl.options.length > 1) {
+            nameEl.value = nameEl.options[1].value;
+            nameEl.dispatchEvent(new Event('change', { bubbles: true }));
           }
           return;
         }
@@ -1672,6 +1895,7 @@
             const boxes = list.querySelectorAll('input[type="checkbox"]');
             boxes.forEach((box, idx) => {
               box.checked = idx === 0 || idx === 1;
+              box.dispatchEvent(new Event('change', { bubbles: true }));
             });
             if (isSamplePretreatmentChecklist(q.id)) {
               Array.from(boxes).forEach(box => {
@@ -1702,10 +1926,12 @@
           const nameEl = document.getElementById(ids.columnNameId);
           if (typeEl && typeEl.options.length > 1) {
             typeEl.value = typeEl.options[1].value;
+            typeEl.dispatchEvent(new Event('change', { bubbles: true }));
             populateColumnNames(q.id, typeEl.value, ids); 
           }
           if (nameEl && nameEl.options.length > 1) {
             nameEl.value = nameEl.options[1].value;
+            nameEl.dispatchEvent(new Event('change', { bubbles: true }));
             updateColumnSelectorTotal(q.id);
           }
           return;
@@ -1831,6 +2057,7 @@
     toggleSectionGuidance: { value: toggleSectionGuidance, configurable: true },
     updateSectionGuidance: { value: updateSectionGuidance, configurable: true },
     updateCurrentSectionScore: { value: updateCurrentSectionScore, configurable: true },
+    updateHazardScore: { value: updateHazardScore, configurable: true },
     isFixedCostsArea: { value: isFixedCostsArea, configurable: true },
     getFixedCostSubTab: { value: getFixedCostSubTab, configurable: true },
     getQuestionsForCurrentView: { value: getQuestionsForCurrentView, configurable: true },
@@ -1855,7 +2082,10 @@
     parseRecurringEntries: { value: parseRecurringEntries, configurable: true },
     renderRecurringList: { value: renderRecurringList, configurable: true },
     addRecurringEntry: { value: addRecurringEntry, configurable: true },
+    addChecklistOtherItem: { value: addChecklistOtherItem, configurable: true },
+    syncCustomChecklistAnswers: { value: syncCustomChecklistAnswers, configurable: true },
     updateRecurringCostTotal: { value: updateRecurringCostTotal, configurable: true },
+    validateGradientProfile: { value: validateGradientProfile, configurable: true },
     populateColumnNames: { value: populateColumnNames, configurable: true },
     populateInstrumentNames: { value: populateInstrumentNames, configurable: true },
     updateColumnSelectorTotal: { value: updateColumnSelectorTotal, configurable: true },

@@ -86,7 +86,7 @@ async function fillQuestionnaireFromPdf(pdfText, questionnaire, env) {
     'Return only JSON in the shape {"answers": {"questionId": value, ...}, "confidence": "low"|"medium"|"high", "unfilled": ["questionId", ...]}.',
     'Use the availableAnswers and units to choose valid values. Preserve numeric values as numbers or numeric strings.',
     'For equipment_dropdown and column_selector questions, return an object with category and name, for example {"category":"HPLC","name":"Detector X"}; use category "Other" only when the PDF names an item not in the available list.',
-    'For equipment_checklist questions, return an array of exact item names. For sample pretreatment checklists, return objects such as {"name":"Item name","amount":2} when an amount is stated; do not return one combined string.',
+    'For equipment_checklist questions, return an array of exact item names. For sample pretreatment checklists, return objects such as {"name":"Item name","amount":2} when an amount is stated. For an item not in availableAnswers, include an estimated positive price as {"name":"Item name","amount":2,"price":25}; do not return one combined string.',
     'For ordinary dropdown questions, return exactly one value from availableAnswers. For booleans, return true or false.',
     `QUESTIONNAIRE SCHEMA:\n${JSON.stringify(questionnaire)}`,
     `EXTRACTED PDF TEXT:\n${text}`

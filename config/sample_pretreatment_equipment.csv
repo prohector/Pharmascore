@@ -1,9 +1,9 @@
-category,name,price,unit
-Solvent used,Acetonitrile (LC-MS grade),0.12,mL
-Solvent used,Methanol (LC-MS grade),0.08,mL
-Solvent used,Water (ultrapure),0.01,mL
-Solvent used,Isopropanol (HPLC grade),0.03,mL
-Solvent used,Acetone,0.03,mL
+category,name,price,unit,nfpa
+Solvent used,Acetonitrile (LC-MS grade),0.12,mL,2
+Solvent used,Methanol (LC-MS grade),0.08,mL,2
+Solvent used,Water (ultrapure),0.01,mL,0
+Solvent used,Isopropanol (HPLC grade),0.03,mL,2
+Solvent used,Acetone,0.03,mL,3
 Reagent used,Formic acid,0.20,g
 Reagent used,Ammonium acetate,0.06,g
 Reagent used,Trifluoroacetic acid (TFA),0.25,g

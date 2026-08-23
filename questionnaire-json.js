@@ -43,9 +43,9 @@
       };
     }
     if (question.type === 'equipment_checklist') {
-      return typeof window.getAuxiliaryEquipmentOptions === 'function'
+      return (typeof window.getAuxiliaryEquipmentOptions === 'function'
         ? window.getAuxiliaryEquipmentOptions(question.id).map(item => String(item.name || '')).filter(Boolean)
-        : [];
+        : []).concat('Add other');
     }
     if (question.type === 'recurring_cost_calculator') {
       return {
@@ -144,12 +144,29 @@
         const ids = window.getEquipmentDropdownIds(question.id);
         const category = String(value.category || value.type || '').trim();
         const name = String(value.name || value.instrument || '').trim();
-        answers[ids.typeId] = category === 'Other' || !category ? '__other__' : category;
-        answers[ids.nameId] = name;
+        const match = findBestOption(window.INSTRUMENT_OPTIONS || [], name, 'name');
+        const selectedCategory = match ? String(match.type || '') : category;
+        const selectedName = match ? String(match.name || '') : name;
+        answers[ids.typeId] = selectedCategory === 'Other' || !selectedCategory ? '__other__' : selectedCategory;
+        answers[ids.nameId] = selectedName;
         answers[question.id + '_type'] = answers[ids.typeId];
-        answers[question.id + '_name'] = name;
-        if (value.price !== undefined) answers[question.id] = String(value.price);
+        answers[question.id + '_name'] = selectedName;
+        const otherPrice = value.price !== undefined && answers[ids.typeId] === '__other__' ? String(value.price) : null;
         console.info('[PharmaScore] Normalized equipment dropdown:', { id: question.id, category, name });
+        delete answers[question.id];
+        if (otherPrice !== null) answers[question.id] = otherPrice;
+        return;
+      }
+      if (question.type === 'equipment_dropdown' && typeof value === 'string') {
+        const ids = window.getEquipmentDropdownIds(question.id);
+        const name = value.trim();
+        const match = findBestOption(window.INSTRUMENT_OPTIONS || [], name, 'name');
+        const selectedName = match ? String(match.name) : name;
+        answers[ids.typeId] = match ? String(match.type || '') : '__other__';
+        answers[ids.nameId] = selectedName;
+        answers[question.id + '_type'] = answers[ids.typeId];
+        answers[question.id + '_name'] = selectedName;
+        console.info('[PharmaScore] Mapped equipment dropdown value:', { id: question.id, category: answers[ids.typeId], name: selectedName });
         delete answers[question.id];
         return;
       }
@@ -157,21 +174,63 @@
         const ids = window.getColumnSelectorIds(question.id);
         const category = String(value.category || value.type || '').trim();
         const name = String(value.name || value.column || '').trim();
-        answers[ids.columnTypeId] = category === 'Other' || !category ? '__other__' : category;
-        answers[ids.columnNameId] = name;
-        if (value.price !== undefined) answers[question.id] = String(value.price);
+        const match = findBestOption(window.COLUMN_OPTIONS || [], name, 'fullName');
+        const selectedCategory = match ? String(match.type || '') : category;
+        const selectedName = match ? String(match.fullName || '') : name;
+        answers[ids.columnTypeId] = selectedCategory === 'Other' || !selectedCategory ? '__other__' : selectedCategory;
+        answers[ids.columnNameId] = selectedName;
+        const otherPrice = value.price !== undefined && answers[ids.columnTypeId] === '__other__' ? String(value.price) : null;
         console.info('[PharmaScore] Normalized column dropdown:', { id: question.id, category, name });
+        delete answers[question.id];
+        if (otherPrice !== null) answers[question.id] = otherPrice;
+        return;
+      }
+      if (question.type === 'column_selector' && typeof value === 'string') {
+        const ids = window.getColumnSelectorIds(question.id);
+        const name = value.trim();
+        const match = findBestOption(window.COLUMN_OPTIONS || [], name, 'fullName');
+        const selectedName = match ? String(match.fullName) : name;
+        answers[ids.columnTypeId] = match ? String(match.type || '') : '__other__';
+        answers[ids.columnNameId] = selectedName;
+        console.info('[PharmaScore] Mapped column dropdown value:', { id: question.id, category: answers[ids.columnTypeId], name: selectedName });
         delete answers[question.id];
         return;
       }
       if (question.type === 'equipment_checklist' && Array.isArray(value)) {
         const isSample = String(question.id).startsWith('sample_pretreat_');
-        const items = value.map(item => typeof item === 'string' ? (isSample ? { name: item, amount: 1 } : item) : item).filter(Boolean);
+        const builtInNames = new Set((getAvailableAnswers(question) || []).map(item => typeof item === 'string' ? item.toLowerCase() : '').filter(Boolean));
+        const availableNames = getAvailableAnswers(question).filter(item => typeof item === 'string');
+        const items = value.map(item => {
+          const rawName = typeof item === 'string' ? item : item?.name;
+          const matchedName = findBestLabel(availableNames, rawName);
+          if (typeof item === 'string') return isSample ? { name: matchedName || item, amount: 1 } : (matchedName || item);
+          if (!isSample && item && item.name) return matchedName || item.name;
+          if (item && matchedName) return { ...item, name: matchedName };
+          return item;
+        }).filter(Boolean);
         answers[question.id + '_items'] = JSON.stringify(items);
+        const customItems = value.filter(item => item && typeof item === 'object' && item.name && !builtInNames.has(String(item.name).toLowerCase()) && Number(item.price) > 0);
+        if (customItems.length) answers[question.id + '_other_items'] = JSON.stringify(customItems);
         console.info('[PharmaScore] Normalized checklist:', { id: question.id, itemCount: items.length, items });
         delete answers[question.id];
       }
     });
+  }
+
+  function normalizeLabel(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  function findBestLabel(labels, value) {
+    const normalized = normalizeLabel(value);
+    return labels.find(label => normalizeLabel(label) === normalized)
+      || labels.find(label => normalizeLabel(label).includes(normalized) || normalized.includes(normalizeLabel(label)));
+  }
+
+  function findBestOption(options, value, field) {
+    const normalized = normalizeLabel(value);
+    return options.find(option => normalizeLabel(option[field]) === normalized)
+      || options.find(option => normalizeLabel(option[field]).includes(normalized) || normalized.includes(normalizeLabel(option[field])));
   }
 
   Object.defineProperties(window, {

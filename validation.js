@@ -39,6 +39,7 @@
     }
     if (q.type === 'equipment_checklist') {
       delete ANSWERS[q.id + '_items'];
+      delete ANSWERS[q.id + '_other_items'];
       delete ANSWERS[q.id + '_total'];
       delete ANSWERS[q.id];
     }
@@ -117,6 +118,7 @@
     }
     updateConditionalVisibility();
     checkFormValidity();
+    if (typeof window.updateHazardScore === 'function') window.updateHazardScore();
     if (typeof window.updateCurrentSectionScore === 'function') window.updateCurrentSectionScore();
   });
 

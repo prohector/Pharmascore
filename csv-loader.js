@@ -57,6 +57,7 @@
       .map(row => ({
         ...row,
         price: row.price !== undefined && row.price !== '' ? Number(row.price) : NaN,
+        nfpa: row.nfpa !== undefined && row.nfpa !== '' ? Number(row.nfpa) : 0,
         type: row.type || row.group || 'Other',
         phase: row.phase || row.Phase || row.section || 'Other'
       }))
