@@ -57,11 +57,6 @@ export async function requestQuestionnaireFill(pdfText, questionnaire) {
   if (!text) return { success: false, error: 'No selectable PDF text was found.' };
   const limit = checkAndRecordQuery();
   if (!limit.allowed) return { success: false, error: limit.error, rateLimited: true };
-  console.info('[PharmaScore] Sending PDF questionnaire request:', {
-    textLength: text.length,
-    questionCount: Array.isArray(questionnaire?.questions) ? questionnaire.questions.length : 0,
-    answerCount: questionnaire?.answers ? Object.keys(questionnaire.answers).length : 0
-  });
   try {
     const response = await fetch(WORKER_URL, {
       method: 'POST',
@@ -69,14 +64,6 @@ export async function requestQuestionnaireFill(pdfText, questionnaire) {
       body: JSON.stringify({ action: 'fill_questionnaire', pdfText: text.slice(0, 120000), questionnaire })
     });
     const data = await response.json().catch(() => ({}));
-    console.info('[PharmaScore] PDF questionnaire response:', {
-      status: response.status,
-      ok: response.ok,
-      success: data.success,
-      confidence: data.confidence,
-      unfilledCount: Array.isArray(data.unfilled) ? data.unfilled.length : null,
-      error: data.error || null
-    });
     if (!response.ok || !data.success) return { success: false, error: data.error || `Questionnaire fill failed (${response.status}).` };
     return data;
   } catch {

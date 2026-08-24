@@ -534,9 +534,16 @@ main.hidden {
 	background: #ffffff;
 }
 
-.recurring-gradient-table input[readonly] {
+.recurring-gradient-table input[readonly],
+.recurring-gradient-table input.gradient-readonly {
 	background: #eef3f7;
 	color: #4a6076;
+}
+
+.recurring-gradient-table th.gradient-auto-col {
+	background: #f2f6fa;
+	color: #5b7188;
+	font-style: italic;
 }
 
 .recurring-buffer-warning {
@@ -1014,6 +1021,35 @@ select.form-input:disabled {
 	border: none;
 	box-shadow: none;
 	outline: none;
+}
+
+/* AI-generated (PDF autofill) values — soft yellow highlight */
+.ai-filled {
+	background-color: #fff6cc !important;
+	border-color: #e9d685 !important;
+}
+
+select.form-input.ai-filled {
+	background-image:
+		linear-gradient(45deg, transparent 50%, #b3983e 50%),
+		linear-gradient(135deg, #b3983e 50%, transparent 50%),
+		linear-gradient(to right, rgba(233, 214, 133, 0.55), rgba(233, 214, 133, 0.55));
+}
+
+select.form-input.ai-filled:disabled,
+.form-input.ai-filled:disabled {
+	background-color: #f7efc9 !important;
+	color: #5a6f82;
+}
+
+.equipment-check-item-wrap.ai-filled {
+	background-color: #fffbe6;
+	border-color: #e9d685;
+}
+
+.boolean-option.ai-filled {
+	background-color: #fffbe6;
+	border-radius: 7px;
 }
 
 /* Number input with units */
@@ -1697,7 +1733,7 @@ button[type="button"]:disabled {
 	border-radius: 12px;
 	box-shadow: 0 8px 24px rgba(26, 58, 82, 0.08);
 	padding: 36px;
-	border-left: 5px solid #10b981;
+	border-left: 5px solid #2d5a7b;
 	min-height: auto;
 	display: flex;
 	flex-direction: column;
@@ -1710,7 +1746,7 @@ button[type="button"]:disabled {
 #results-section h3 {
 	font-size: 22px;
 	font-weight: 700;
-	color: #10b981;
+	color: #1a3a52;
 	margin-bottom: 20px;
 	letter-spacing: -0.3px;
 }
@@ -1722,9 +1758,11 @@ button[type="button"]:disabled {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background-color: #f0fdf4;
-	border-radius: 8px;
+	background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+	border: 1px solid #e2eaf2;
+	border-radius: 12px;
 	padding: 20px;
+	overflow: hidden;
 }
 
 .results-price-summary {
@@ -1918,19 +1956,56 @@ button[type="button"]:disabled {
 	font-size: 13px;
 }
 
-#debug-scores {
-	font-size: 12px;
-	color: #5a6f82;
-	margin-top: 20px;
-	padding: 16px;
-	background-color: #f0f4f8;
-	border-radius: 8px;
-	border-left: 3px solid #2d5a7b;
-	word-break: break-all;
-	max-height: 200px;
-	overflow-y: auto;
-	font-family: 'Courier New', monospace;
-	line-height: 1.4;
+/* Results graphic: petals float on hover */
+#results-graphic svg {
+	animation: results-rise-in 0.65s ease both;
+}
+
+@keyframes results-rise-in {
+	from {
+		opacity: 0;
+		transform: translateY(16px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+#results-graphic .petal {
+	transition: transform 0.5s cubic-bezier(0.2, 0.85, 0.3, 1.25);
+	cursor: default;
+}
+
+#results-graphic .petal:hover {
+	transform: translateY(-18px);
+}
+
+#results-graphic .petal-crystal,
+#results-graphic .petal-label {
+	transition: filter 0.35s ease;
+}
+
+#results-graphic .petal:hover .petal-crystal {
+	filter: drop-shadow(0 18px 16px rgba(26, 58, 82, 0.28));
+}
+
+#results-graphic .petal:hover .petal-label {
+	filter: drop-shadow(0 10px 14px rgba(26, 58, 82, 0.22));
+}
+
+#results-graphic .petal:hover .label-chip {
+	stroke-width: 3.5;
+}
+
+#results-graphic .center-ring {
+	transition: transform 0.5s cubic-bezier(0.2, 0.85, 0.3, 1.25);
+	transform-origin: center;
+	transform-box: fill-box;
+}
+
+#results-graphic .center-ring:hover {
+	transform: scale(1.05);
 }
 
 .btn-retake {

@@ -223,7 +223,6 @@
               toggle.setAttribute('aria-expanded', 'true');
             }
           }
-          console.info('[PharmaScore] Restored checklist:', { id: q.id, checked: checkedCount });
         }
         if (totalEl && ANSWERS[q.id + '_total'] !== undefined) totalEl.value = ANSWERS[q.id + '_total'];
         if (typeof window.updateEquipmentChecklistTotal === 'function') {
@@ -274,7 +273,11 @@
         mix.buffers = parseRecurringEntries(ANSWERS[q.id + '_buffer_entries']);
         mix.modifiers = parseRecurringEntries(ANSWERS[q.id + '_modifier_entries']);
         const savedGradientRows = parseRecurringEntries(ANSWERS[q.id + '_gradient_rows']);
-        if (savedGradientRows.length) mix.gradientRows = savedGradientRows;
+        if (savedGradientRows.length) {
+          mix.gradientRows = typeof window.normalizeGradientRows === 'function'
+            ? window.normalizeGradientRows(savedGradientRows)
+            : savedGradientRows;
+        }
         mix.gradientMode = ANSWERS[q.id + '_gradient_mode'] === 'gradient' ? 'gradient' : 'isocratic';
         mix.solvents = [...mix.normalPhaseSolvents, ...mix.reversePhaseSolvents];
         const columnTypeEl = document.getElementById(ids.columnTypeId);
@@ -361,6 +364,9 @@
     if (area && area.title === 'Practicality') {
       syncPracticalityFromPerformance();
     }
+
+    // Re-apply the AI-generated highlight after re-rendering (PDF autofill values)
+    if (typeof window.reapplyAiFilledMarks === 'function') window.reapplyAiFilledMarks();
   }
 
   function syncPracticalityFromPerformance() {

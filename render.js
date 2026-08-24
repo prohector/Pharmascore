@@ -619,10 +619,25 @@
         modifiers: [],
         buffers: [],
         gradientMode: 'isocratic',
-        gradientRows: [{ from: 0, to: 10, values: {} }]
+        gradientRows: [{ time: 0, values: {} }, { time: 10, values: {} }]
       };
     }
     return window.RECURRING_MIXES[questionId];
+  }
+
+  function normalizeGradientRows(rows) {
+    return (Array.isArray(rows) ? rows : []).map(row => {
+      if (row && row.from !== undefined && row.to !== undefined && row.time === undefined) {
+        return { time: Number(row.from || 0), values: row.values || {} };
+      }
+      return { time: Number((row && row.time) || 0), values: (row && row.values) || {} };
+    });
+  }
+
+  function computeAutocompleteA(letters, values) {
+    const sumOthers = (letters || []).filter(letter => letter !== 'A')
+      .reduce((sum, letter) => sum + Number((values && values[letter]) ?? 0), 0);
+    return 100 - sumOthers;
   }
 
   function normalizeRecurringEntryName(name) {
@@ -723,27 +738,30 @@
     syncGradientLetters(questionId);
     const assignments = buildGradientAssignments(questionId);
     const letters = assignments.map(item => item.letter);
-    const rows = Array.isArray(mix.gradientRows) && mix.gradientRows.length ? mix.gradientRows : [{ from: 0, to: 10, values: {} }];
+    const firstLetter = letters[0] || 'A';
+    const rows = normalizeGradientRows(mix.gradientRows);
+    if (!rows.length) rows.push({ time: 0, values: {} });
+    rows.forEach(row => {
+      row.values = row.values || {};
+      row.values[firstLetter] = computeAutocompleteA(letters, row.values);
+    });
 
     tableEl.innerHTML = `
       <thead>
         <tr>
-          <th>From time</th>
-          <th>To time</th>
-          ${assignments.map(assignment => `<th>${assignment.entry.name}</th>`).join('')}
+          <th>Time (min)</th>
+          ${assignments.map((assignment, idx) => `<th${idx === 0 ? ' class="gradient-auto-col"' : ''}>${assignment.entry.name}${idx === 0 ? ' (auto)' : ''}</th>`).join('')}
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         ${rows.map((row, rowIndex) => `
           <tr>
-            <td><input type="number" min="0" step="any" data-row-index="${rowIndex}" data-field="from" value="${Number(row.from || 0)}"></td>
-            <td><input type="number" min="0" step="any" data-row-index="${rowIndex}" data-field="to" value="${Number(row.to || 0)}"></td>
+            <td><input type="number" min="0" step="any" data-row-index="${rowIndex}" data-field="time" value="${Number(row.time || 0)}"></td>
             ${letters.map(letter => {
-              const key = letter;
-              const value = row.values && row.values[key] !== undefined ? row.values[key] : (assignments.find(item => item.letter === letter)?.entry?.percent || '');
-              const readOnly = letter === 'A' && assignments.some(item => item.letter === 'A' && item.entry && /water/i.test(String(item.entry.name || '')));
-              return `<td><input type="number" min="0" max="100" step="any" data-row-index="${rowIndex}" data-field="${letter}" value="${value}" ${readOnly ? 'readonly' : ''}></td>`;
+              const value = row.values[letter] !== undefined ? row.values[letter] : '';
+              const readOnly = letter === firstLetter;
+              return `<td><input type="number" min="0" max="100" step="any" data-row-index="${rowIndex}" data-field="${letter}" value="${value}" ${readOnly ? 'readonly class="gradient-readonly"' : ''}${readOnly ? ' title="Auto-computed so this row totals 100%"' : ''}></td>`;
             }).join('')}
             <td><button type="button" class="recurring-remove-btn" data-gradient-remove-row="${rowIndex}">Remove</button></td>
           </tr>
@@ -756,12 +774,15 @@
         const target = event.target;
         const rowIndex = Number(target.dataset.rowIndex || 0);
         const field = target.dataset.field;
-        if (!rows[rowIndex]) rows[rowIndex] = { from: 0, to: 10, values: {} };
-        if (field === 'from' || field === 'to') {
-          rows[rowIndex][field] = Number(target.value || 0);
-        } else {
-          rows[rowIndex].values = rows[rowIndex].values || {};
+        if (!rows[rowIndex]) rows[rowIndex] = { time: 0, values: {} };
+        rows[rowIndex].values = rows[rowIndex].values || {};
+        if (field === 'time') {
+          rows[rowIndex].time = Number(target.value || 0);
+        } else if (field !== firstLetter) {
           rows[rowIndex].values[field] = Number(target.value || 0);
+          rows[rowIndex].values[firstLetter] = computeAutocompleteA(letters, rows[rowIndex].values);
+          const firstInput = tableEl.querySelector(`input[data-row-index="${rowIndex}"][data-field="${firstLetter}"]`);
+          if (firstInput) firstInput.value = rows[rowIndex].values[firstLetter];
         }
         mix.gradientRows = rows;
         updateRecurringCostTotal(questionId);
@@ -771,7 +792,7 @@
     tableEl.querySelectorAll('[data-gradient-remove-row]').forEach(button => {
       button.addEventListener('click', () => {
         const rowIndex = Number(button.dataset.gradientRemoveRow);
-        if (rows.length <= 1) return;
+        if (rows.length <= 2) return;
         rows.splice(rowIndex, 1);
         mix.gradientRows = rows;
         renderGradientTable(questionId);
@@ -783,10 +804,12 @@
     const addRowButton = document.getElementById(`${ids.gradientTableWrapId}_add_row`);
     if (addRowButton) {
       addRowButton.onclick = () => {
-        const previous = rows[rows.length - 1] || { from: 0, to: 10, values: {} };
-        const nextFrom = Number(previous.to || previous.from || 0);
-        const nextTo = nextFrom + 10;
-        rows.push({ from: nextFrom, to: nextTo, values: Object.fromEntries(assignments.map(item => [item.letter, Number(previous.values?.[item.letter] ?? item.entry.percent ?? 0)])) });
+        const last = rows[rows.length - 1] || { time: 0, values: {} };
+        const nextTime = Number(last.time || 0) + 10;
+        const values = Object.fromEntries(assignments.map(item => [item.letter, Number(last.values?.[item.letter] ?? item.entry.percent ?? 0)]));
+        const newRow = { time: nextTime, values };
+        newRow.values[firstLetter] = computeAutocompleteA(letters, newRow.values);
+        rows.push(newRow);
         mix.gradientRows = rows;
         renderGradientTable(questionId);
         updateRecurringCostTotal(questionId);
@@ -797,52 +820,55 @@
     tableWrap.classList.toggle('hidden', mode !== 'gradient');
   }
 
-  function getGradientCostBreakdown(questionId, flowRate) {
-    const mix = getRecurringMix(questionId);
-    const rows = Array.isArray(mix.gradientRows) ? mix.gradientRows : [];
-    const solventEntries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
-    const water = solventEntries.find(entry => /water/i.test(String(entry.name || '')));
-    const breakdown = [];
-    let previousTo = null;
-    rows.forEach((row, index) => {
-      const from = Number(row.from);
-      const to = Number(row.to);
-      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || (previousTo !== null && from < previousTo)) {
-        console.warn('[PharmaScore] Invalid gradient time row:', { segment: index + 1, from, to });
-        previousTo = to;
-        return;
-      }
-      const duration = to - from;
-      previousTo = to;
-      if (!duration || !flowRate) return;
-      const volumeMl = duration * flowRate;
-      const values = row.values || {};
-      const totalPercent = assignmentsForRow(assignmentsFromMix(mix), values);
-      if (totalPercent > 0 && Math.abs(totalPercent - 100) > 0.01) {
-        console.warn('[PharmaScore] Gradient concentrations do not sum to 100%:', { segment: index + 1, totalPercent });
-      }
-      solventEntries.forEach(entry => {
-        const percent = Number(values[entry.gradientLetter] ?? entry.percent ?? 0);
-        const cost = volumeMl * (percent / 100) * Number(entry.price || 0);
-        breakdown.push({ segment: index + 1, component: entry.name, basis: 'mL', durationMin: duration, volumeMl, concentration: percent, costEUR: Number(cost.toFixed(6)) });
-      });
-      const waterShare = water ? Number(values.A ?? water.percent ?? 0) / 100 : 1;
-      const aqueousVolumeL = (volumeMl * waterShare) / 1000;
-      [...(mix.buffers || []), ...(mix.modifiers || [])].forEach(entry => {
-        const mgPerL = Number(entry.amountMgPerL ?? entry.percent ?? 0);
-        const cost = aqueousVolumeL * mgPerL / 1000 * Number(entry.price || 0);
-        breakdown.push({ segment: index + 1, component: entry.name, basis: 'mg/L in aqueous phase', durationMin: duration, volumeMl, concentration: mgPerL, costEUR: Number(cost.toFixed(6)) });
-      });
-    });
-    return breakdown;
-  }
-
   function assignmentsFromMix(mix) {
     return [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
   }
 
-  function assignmentsForRow(entries, values) {
-    return entries.reduce((sum, entry) => sum + Number(values[entry.gradientLetter] ?? entry.percent ?? 0), 0);
+  function getGradientCostBreakdown(questionId, flowRate) {
+    syncGradientLetters(questionId);
+    const mix = getRecurringMix(questionId);
+    const solventEntries = assignmentsFromMix(mix);
+    const letters = buildGradientAssignments(questionId).map(assignment => assignment.letter);
+    const firstLetter = letters[0] || 'A';
+    const water = solventEntries.find(entry => /water/i.test(String(entry.name || '')));
+    const rows = normalizeGradientRows(mix.gradientRows).slice().sort((a, b) => a.time - b.time);
+    rows.forEach(row => {
+      row.values = row.values || {};
+      row.values[firstLetter] = computeAutocompleteA(letters, row.values);
+    });
+    const breakdown = [];
+    if (rows.length < 2 || !Number.isFinite(flowRate) || flowRate <= 0) return breakdown;
+
+    for (let i = 0; i < rows.length - 1; i++) {
+      const t1 = Number(rows[i].time);
+      const t2 = Number(rows[i + 1].time);
+      const duration = t2 - t1;
+      if (!Number.isFinite(duration) || duration <= 0) {
+        console.warn('[PharmaScore] Invalid gradient time interval:', { segment: i + 1, t1, t2 });
+        continue;
+      }
+      const v1 = rows[i].values || {};
+      const v2 = rows[i + 1].values || {};
+      solventEntries.forEach(entry => {
+        const c1 = Number(v1[entry.gradientLetter] ?? entry.percent ?? 0);
+        const c2 = Number(v2[entry.gradientLetter] ?? entry.percent ?? 0);
+        const avgPercent = (c1 + c2) / 2;
+        const effectiveMin = duration * (avgPercent / 100);
+        const volumeMl = effectiveMin * flowRate;
+        const cost = volumeMl * Number(entry.price || 0);
+        breakdown.push({ segment: i + 1, component: entry.name, basis: 'mL', fromMin: t1, toMin: t2, durationMin: duration, avgPercent, effectiveMin, volumeMl, costEUR: Number(cost.toFixed(6)) });
+      });
+      const w1 = Number(v1[firstLetter] ?? (water && water.percent) ?? 0) / 100;
+      const w2 = Number(v2[firstLetter] ?? (water && water.percent) ?? 0) / 100;
+      const waterShare = water ? (w1 + w2) / 2 : 0;
+      const aqueousVolumeL = (duration * waterShare * flowRate) / 1000;
+      [...(mix.buffers || []), ...(mix.modifiers || [])].forEach(entry => {
+        const mgPerL = Number(entry.amountMgPerL ?? entry.percent ?? 0);
+        const cost = aqueousVolumeL * mgPerL / 1000 * Number(entry.price || 0);
+        breakdown.push({ segment: i + 1, component: entry.name, basis: 'mg/L in aqueous phase', fromMin: t1, toMin: t2, durationMin: duration, concentration: mgPerL, volumeMl: duration * flowRate, costEUR: Number(cost.toFixed(6)) });
+      });
+    }
+    return breakdown;
   }
 
   function calculateGradientCost(questionId, flowRate) {
@@ -856,20 +882,22 @@
 
   function validateGradientProfile(questionId, flowRate) {
     const mix = getRecurringMix(questionId);
-    const rows = Array.isArray(mix.gradientRows) ? mix.gradientRows : [];
-    const entries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
+    const entries = assignmentsFromMix(mix);
+    const letters = buildGradientAssignments(questionId).map(assignment => assignment.letter);
+    const firstLetter = letters[0] || 'A';
+    const rows = normalizeGradientRows(mix.gradientRows).slice().sort((a, b) => a.time - b.time);
     const errors = [];
     if (!Number.isFinite(flowRate) || flowRate <= 0) errors.push('Enter a positive gradient flow rate.');
     if (!entries.length) errors.push('Add at least one solvent before calculating a gradient.');
-    let previousTo = null;
+    if (rows.length < 2) errors.push('Add at least two time points (start and end) for the gradient.');
     rows.forEach((row, index) => {
-      const from = Number(row.from);
-      const to = Number(row.to);
-      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) errors.push(`Time row ${index + 1} must have a positive duration.`);
-      if (previousTo !== null && from !== previousTo) errors.push(`Time row ${index + 1} must start at the previous row end time.`);
-      previousTo = to;
-      const totalPercent = assignmentsForRow(entries, row.values || {});
-      if (Math.abs(totalPercent - 100) > 0.01) errors.push(`Time row ${index + 1} solvent percentages must total 100%.`);
+      const t = Number(row.time);
+      if (!Number.isFinite(t) || t < 0) errors.push(`Time point ${index + 1} must be a non-negative number.`);
+      if (index > 0 && t <= Number(rows[index - 1].time)) errors.push(`Time points must be strictly increasing (row ${index + 1}).`);
+      const values = row.values || {};
+      const sumOthers = letters.filter(letter => letter !== firstLetter)
+        .reduce((sum, letter) => sum + Number(values[letter] ?? 0), 0);
+      if (sumOthers > 100.01) errors.push(`Time point ${index + 1} non-first solvent percentages exceed 100%.`);
     });
     return { valid: errors.length === 0, errors };
   }
@@ -910,12 +938,19 @@
     const listBlock = listEl.closest('.recurring-cost-list-block');
     if (listBlock) listBlock.classList.remove('hidden');
     const isGradient = mix.gradientMode === 'gradient';
-    listEl.innerHTML = entries.map((entry, index) => `
-      <div class="recurring-cost-entry\">
-        <span>${isGradient ? entry.name : (entry.gradientLetter ? `${entry.gradientLetter} - ` : '') + entry.name} ${!isGradient ? `(${entry.percent}%)` : ''}${entry.disclaimer ? ` <small>${entry.disclaimer}</small>` : ''}</span>
+    const isAqueousAdditive = category === 'buffer' || category === 'modifier';
+    listEl.innerHTML = entries.map((entry, index) => {
+      const prefix = (isAqueousAdditive || isGradient) ? '' : (entry.gradientLetter ? `${entry.gradientLetter} - ` : '');
+      const detail = isAqueousAdditive
+        ? ` (${Number(entry.amountMgPerL ?? entry.percent ?? 0)} mg/L in water)`
+        : (!isGradient ? ` (${entry.percent}%)` : '');
+      return `
+      <div class="recurring-cost-entry">
+        <span>${prefix}${entry.name}${detail}${entry.disclaimer ? ` <small>${entry.disclaimer}</small>` : ''}</span>
         <button type="button" class="recurring-remove-btn" data-question-id="${questionId}" data-category="${category}" data-index="${index}">Remove</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     listEl.querySelectorAll('.recurring-remove-btn').forEach(button => {
       button.addEventListener('click', () => {
@@ -1135,14 +1170,15 @@
     const selectEl = document.getElementById(selectId);
     const pctEl = document.getElementById(pctId);
     const isGradientMode = (getRecurringMix(questionId).gradientMode || 'isocratic') === 'gradient';
+    const isAqueousAdditive = category === 'buffer' || category === 'modifier';
     if (!selectEl || !selectEl.value) {
       showRecurringCostMessage(questionId, 'Please choose an option before adding it to the list.', 'error');
       return;
     }
 
-    const percent = isGradientMode ? 0 : Number(pctEl && pctEl.value !== '' ? pctEl.value : 0);
-    if (!isGradientMode && (!Number.isFinite(percent) || percent <= 0)) {
-      showRecurringCostMessage(questionId, 'Please enter a valid percentage greater than zero.', 'error');
+    const percent = (isAqueousAdditive || !isGradientMode) ? Number(pctEl && pctEl.value !== '' ? pctEl.value : 0) : 0;
+    if ((isAqueousAdditive || !isGradientMode) && (!Number.isFinite(percent) || percent <= 0)) {
+      showRecurringCostMessage(questionId, isAqueousAdditive ? 'Please enter a valid amount (mg/L in water) greater than zero.' : 'Please enter a valid percentage greater than zero.', 'error');
       return;
     }
 
@@ -1554,9 +1590,9 @@
                   ${bufferOptionsHtml}
                 </select>
               </div>
-              <div class="recurring-cost-field ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}">
+              <div class="recurring-cost-field">
                 <label for="${ids.bufferPctId}" class="input-label-small">Amount (mg/L in water)</label>
-                <input id="${ids.bufferPctId}" name="${ids.bufferPctId}" type="number" min="0" step="any" class="form-input" placeholder="10" data-gradient-percent-field="true">
+                <input id="${ids.bufferPctId}" name="${ids.bufferPctId}" type="number" min="0" step="any" class="form-input" placeholder="10">
               </div>
               <div class="recurring-cost-action">
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="buffer">Add</button>
@@ -1572,9 +1608,9 @@
                   ${modifierOptionsHtml}
                 </select>
               </div>
-              <div class="recurring-cost-field ${getRecurringMix(q.id).gradientMode === 'gradient' ? 'hidden' : ''}">
+              <div class="recurring-cost-field">
                 <label for="${ids.modifierPctId}" class="input-label-small">Amount (mg/L in water)</label>
-                <input id="${ids.modifierPctId}" name="${ids.modifierPctId}" type="number" min="0" step="any" class="form-input" placeholder="0.1" data-gradient-percent-field="true">
+                <input id="${ids.modifierPctId}" name="${ids.modifierPctId}" type="number" min="0" step="any" class="form-input" placeholder="0.1">
               </div>
               <div class="recurring-cost-action">
                 <button type="button" class="recurring-add-btn" data-question-id="${q.id}" data-category="modifier">Add</button>
@@ -1919,13 +1955,12 @@
           answers[q.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reverseEntries);
           answers[q.id + '_buffer_entries'] = JSON.stringify(bufferEntries);
           answers[q.id + '_modifier_entries'] = JSON.stringify([]);
-          answers[q.id + '_gradient_rows'] = JSON.stringify([{ from: 0, to: 10, values: { A: 50, B: 50 } }]);
+          answers[q.id + '_gradient_rows'] = JSON.stringify([{ time: 0, values: { A: 50, B: 50 } }, { time: 10, values: { A: 50, B: 50 } }]);
           return;
         }
       });
     });
 
-    console.info('[PharmaScore] Debug autofill answers:', answers);
     if (typeof window.importQuestionnaireJson === 'function') {
       window.importQuestionnaireJson({ answers });
     } else {
@@ -1965,10 +2000,67 @@
           const priceEl = document.getElementById(`${item.q.id}_other_price`);
           if (priceEl) priceEl.value = String(result.price);
           item.update();
-          console.info('[PharmaScore] Auto-filled Other price:', { id: item.q.id, name: item.name, price: result.price });
         }
       } catch { /* leave for manual query */ }
     }
+  }
+
+  function reapplyAiFilledMarks() {
+    if (window.AI_FILLED_ANSWERS && typeof markAiFilledAnswers === 'function') {
+      markAiFilledAnswers(window.AI_FILLED_ANSWERS);
+    }
+  }
+
+  function markAiFilledAnswers(aiAnswers) {
+    window.AI_FILLED_ANSWERS = aiAnswers || null;
+    if (!aiAnswers || typeof aiAnswers !== 'object') return;
+    const questionMap = new Map();
+    (QUESTION_AREAS || []).forEach(area => (area.questions || []).forEach(q => questionMap.set(q.id, q)));
+    const stripSuffix = key => key.replace(/_(items|total|name|type|run|flow|gradient_flow|gradient_mode|normal_phase_solvent_entries|reverse_phase_solvent_entries|solvent_entries|buffer_entries|modifier_entries|gradient_rows|price|grams|link)$/, '');
+    const mark = el => { if (el) el.classList.add('ai-filled'); };
+    const markLabels = id => {
+      [id + '_true', id + '_false'].forEach(radioId => {
+        const label = document.querySelector(`label[for="${radioId}"]`);
+        if (label) label.classList.add('ai-filled');
+      });
+    };
+
+    Object.keys(aiAnswers).forEach(key => {
+      const questionId = stripSuffix(key);
+      const q = questionMap.get(questionId);
+      if (!q) return;
+      if (q.type === 'boolean') {
+        mark(document.getElementById(q.id + '_true'));
+        mark(document.getElementById(q.id + '_false'));
+        markLabels(q.id);
+      } else if (q.type === 'equipment_dropdown' || q.type === 'column_selector') {
+        mark(document.getElementById(q.id + '_type'));
+        mark(document.getElementById(q.id + '_name'));
+        mark(document.getElementById(q.id + '_other_name'));
+        mark(document.getElementById(q.id + '_other_price'));
+      } else if (q.type === 'equipment_checklist') {
+        const list = document.getElementById(q.id + '_equipment_list');
+        if (list) {
+          list.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+            const wrap = cb.closest('.equipment-check-item-wrap');
+            if (wrap) wrap.classList.add('ai-filled');
+            else mark(cb);
+            const amountInputId = cb.getAttribute('data-amount-input-id');
+            const amountEl = amountInputId ? document.getElementById(amountInputId) : null;
+            if (amountEl) amountEl.classList.add('ai-filled');
+          });
+        }
+      } else if (q.type === 'recurring_cost_calculator') {
+        const calc = document.getElementById(q.id + '_calculator');
+        if (calc) calc.querySelectorAll('input, select').forEach(el => el.classList.add('ai-filled'));
+      } else if (q.type === 'chem_lookup') {
+        mark(document.getElementById(q.id + '_name'));
+        mark(document.getElementById(q.id + '_price'));
+        mark(document.getElementById(q.id + '_grams'));
+      } else {
+        mark(document.getElementById(q.id));
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -2004,16 +2096,14 @@
         ANALYSIS_GATE_CHOSEN = true;
         if (status) status.textContent = 'Extracting selectable PDF text...';
         try {
-          console.info('[PharmaScore] PDF autofill started:', { fileName: file.name, size: file.size, mode });
           showQuestionnaireIfReady();
           const questionnaire = window.buildQuestionnaireJson();
           const result = await window.fillQuestionnaireFromPdf(file, questionnaire);
           if (!result.success) throw new Error(result.error || 'The PDF could not be processed.');
-          console.info('[PharmaScore] Importing AI questionnaire answers:', {
-            answerCount: result.questionnaire?.answers ? Object.keys(result.questionnaire.answers).length : 0,
-            unfilledCount: Array.isArray(result.unfilled) ? result.unfilled.length : null
-          });
           window.importQuestionnaireJson(result.questionnaire || result);
+          if (typeof window.markAiFilledAnswers === 'function') {
+            window.markAiFilledAnswers((result.questionnaire && result.questionnaire.answers) || result.answers || {});
+          }
           if (status) status.textContent = 'PDF values imported. Review the answers before continuing.';
         } catch (error) {
           if (status) status.textContent = error.message || 'PDF auto-fill failed. You can complete the questionnaire manually.';
@@ -2033,15 +2123,20 @@
         const resultsSection = document.getElementById('results-section');
         if (resultsSection) resultsSection.classList.add('hidden');
         for (const key in ANSWERS) delete ANSWERS[key];
+        window.AI_FILLED_ANSWERS = null;
+        ANALYSIS_GATE_CHOSEN = false;
         currentTab = 0;
+        fixedCostsSubTab = 0;
+        analyticalPerformanceSubTab = 0;
+        analyticalConsumablesSubTab = 0;
+        const gate = document.getElementById('analysis-gate');
         const main = document.querySelector('main');
-        if (main) main.classList.remove('hidden');
-        renderTabs();
-        renderQuestions();
-        updateSectionTitle();
-        updateProgress();
-        updateNavButtons();
-        checkFormValidity();
+        const nav = document.querySelector('nav');
+        const progress = document.getElementById('progress-indicator');
+        if (gate) gate.classList.remove('hidden');
+        if (main) main.classList.add('hidden');
+        if (nav) nav.classList.add('hidden');
+        if (progress) progress.classList.add('hidden');
       });
     }
 
@@ -2056,6 +2151,8 @@
     updateCurrentSectionScore: { value: updateCurrentSectionScore, configurable: true },
     updateHazardScore: { value: updateHazardScore, configurable: true },
     autoFillMissingOtherPrices: { value: autoFillMissingOtherPrices, configurable: true },
+    markAiFilledAnswers: { value: markAiFilledAnswers, configurable: true },
+    reapplyAiFilledMarks: { value: reapplyAiFilledMarks, configurable: true },
     isFixedCostsArea: { value: isFixedCostsArea, configurable: true },
     getFixedCostSubTab: { value: getFixedCostSubTab, configurable: true },
     getQuestionsForCurrentView: { value: getQuestionsForCurrentView, configurable: true },
@@ -2084,6 +2181,7 @@
     syncCustomChecklistAnswers: { value: syncCustomChecklistAnswers, configurable: true },
     updateRecurringCostTotal: { value: updateRecurringCostTotal, configurable: true },
     validateGradientProfile: { value: validateGradientProfile, configurable: true },
+    normalizeGradientRows: { value: normalizeGradientRows, configurable: true },
     populateColumnNames: { value: populateColumnNames, configurable: true },
     populateInstrumentNames: { value: populateInstrumentNames, configurable: true },
     updateColumnSelectorTotal: { value: updateColumnSelectorTotal, configurable: true },

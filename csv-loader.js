@@ -171,18 +171,6 @@
         window.INSTRUMENT_OPTIONS = [];
       }
 
-      if (window.COLUMN_OPTIONS.length) {
-        console.log('Distinct column types:', getColumnTypes(window.COLUMN_OPTIONS));
-      }
-
-      console.groupCollapsed && console.groupCollapsed('Loaded recurring cost sources');
-      console.log('Solvents:', window.SOLVENT_OPTIONS);
-      console.log('Columns:', window.COLUMN_OPTIONS);
-      console.log('Buffers:', window.BUFFER_OPTIONS);
-      console.log('Auxiliary equipment:', window.AUXILIARY_EQUIPMENT_OPTIONS);
-      console.log('Sample pretreatment equipment:', window.SAMPLE_PRETREATMENT_EQUIPMENT_OPTIONS);
-      console.groupEnd && console.groupEnd();
-
       const allRows = parseCSV(csvText);
       const sectionMap = {};
       allRows.forEach(row => {
@@ -196,7 +184,6 @@
             const normalizedParams = row.params.replace(/\\/g, '');
             try {
               parsedParams = JSON.parse(normalizedParams);
-              console.info('[PharmaScore] Repaired escaped params:', row.id);
             } catch {
               console.warn('[PharmaScore] Malformed params for question:', row.id, {
                 raw: row.params,

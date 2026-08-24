@@ -33,13 +33,13 @@
     if (question.type === 'equipment_dropdown') {
       return {
         categories: (Array.isArray(window.INSTRUMENT_OPTIONS) ? [...new Set(window.INSTRUMENT_OPTIONS.map(item => String(item.type || '')).filter(Boolean))] : []).concat('Other'),
-        names: Array.isArray(window.INSTRUMENT_OPTIONS) ? window.INSTRUMENT_OPTIONS.map(item => ({ category: item.type || '', name: item.name || '' })).filter(item => item.name) : []
+        names: Array.isArray(window.INSTRUMENT_OPTIONS) ? window.INSTRUMENT_OPTIONS.map(item => ({ category: item.type || '', name: item.name || '', price: Number(item.price || 0) })).filter(item => item.name) : []
       };
     }
     if (question.type === 'column_selector') {
       return {
         categories: (Array.isArray(window.COLUMN_OPTIONS) ? [...new Set(window.COLUMN_OPTIONS.map(item => String(item.type || '')).filter(Boolean))] : []).concat('Other'),
-        names: Array.isArray(window.COLUMN_OPTIONS) ? window.COLUMN_OPTIONS.map(item => ({ category: item.type || '', name: item.fullName || '' })).filter(item => item.name) : []
+        names: Array.isArray(window.COLUMN_OPTIONS) ? window.COLUMN_OPTIONS.map(item => ({ category: item.type || '', name: item.fullName || '', price: Number(item.price || 0) })).filter(item => item.name) : []
       };
     }
     if (question.type === 'equipment_checklist') {
@@ -114,7 +114,7 @@
           : question.type === 'equipment_checklist'
             ? '[string] or [{ name, amount, price? }]'
             : question.type === 'recurring_cost_calculator'
-              ? '{ run, flow, gradientMode, gradientFlow?, normalPhaseSolvents: [{name,percent,price}], reversePhaseSolvents: [...], buffers: [{name,amountMgPerL,price}], modifiers: [...], gradientRows: [{from,to,values:{A,B}}] }'
+              ? '{ run, flow, gradientMode, gradientFlow?, normalPhaseSolvents: [{name,percent,price}], reversePhaseSolvents: [...], buffers: [{name,amountMgPerL,price}], modifiers: [...], gradientRows: [{time,values:{A,B}}] }'
               : 'single value';
         questions.push({
           section: area.title,
@@ -178,10 +178,6 @@
       .map(question => question.id));
     const answered = new Set(Object.keys(importedAnswers).map(key => key.replace(/_(items|total|name|type|run|flow|gradient_flow|gradient_mode|normal_phase_solvent_entries|reverse_phase_solvent_entries|solvent_entries|buffer_entries|modifier_entries|gradient_rows|price|grams|link)$/, '')));
     const unfilled = requiredIds.filter(id => !answered.has(id));
-    console.info('[PharmaScore] Imported questionnaire answers:', {
-      importedAnswerKeys: Object.keys(importedAnswers).length,
-      unfilledRequired: unfilled
-    });
 
     if (typeof window.renderQuestions === 'function') window.renderQuestions();
     if (typeof window.restoreCurrentTabAnswers === 'function') window.restoreCurrentTabAnswers();
@@ -212,7 +208,8 @@
       if (question.type === 'equipment_dropdown' && value && typeof value === 'object') {
         const ids = window.getEquipmentDropdownIds(question.id);
         const name = String(value.name || value.instrument || '').trim();
-        const match = findBestOption(window.INSTRUMENT_OPTIONS || [], name, 'name');
+        const referencePrice = Number(value.price);
+        const match = findBestOption(window.INSTRUMENT_OPTIONS || [], name, 'name', referencePrice);
         let selectedCategory;
         let selectedName;
         if (match) {
@@ -230,7 +227,6 @@
         answers[question.id + '_type'] = selectedCategory;
         answers[question.id + '_name'] = selectedName;
         const otherPrice = value.price !== undefined && selectedCategory === '__other__' ? String(value.price) : null;
-        console.info('[PharmaScore] Normalized equipment dropdown:', { id: question.id, category: selectedCategory, name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         if (otherPrice !== null) answers[question.id] = otherPrice;
         return;
@@ -244,14 +240,14 @@
         answers[ids.nameId] = selectedName;
         answers[question.id + '_type'] = answers[ids.typeId];
         answers[question.id + '_name'] = selectedName;
-        console.info('[PharmaScore] Mapped equipment dropdown value:', { id: question.id, category: answers[ids.typeId], name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         return;
       }
       if (question.type === 'column_selector' && value && typeof value === 'object') {
         const ids = window.getColumnSelectorIds(question.id);
         const name = String(value.name || value.column || '').trim();
-        const match = findBestOption(window.COLUMN_OPTIONS || [], name, 'fullName');
+        const referencePrice = Number(value.price);
+        const match = findBestOption(window.COLUMN_OPTIONS || [], name, 'fullName', referencePrice);
         let selectedCategory;
         let selectedName;
         if (match) {
@@ -267,7 +263,6 @@
         answers[ids.columnTypeId] = selectedCategory;
         answers[ids.columnNameId] = selectedName;
         const otherPrice = value.price !== undefined && selectedCategory === '__other__' ? String(value.price) : null;
-        console.info('[PharmaScore] Normalized column dropdown:', { id: question.id, category: selectedCategory, name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         if (otherPrice !== null) answers[question.id] = otherPrice;
         return;
@@ -279,7 +274,6 @@
         const selectedName = match ? String(match.fullName) : name;
         answers[ids.columnTypeId] = match ? String(match.type || '') : '__other__';
         answers[ids.columnNameId] = selectedName;
-        console.info('[PharmaScore] Mapped column dropdown value:', { id: question.id, category: answers[ids.columnTypeId], name: selectedName, matched: Boolean(match) });
         delete answers[question.id];
         return;
       }
@@ -301,18 +295,30 @@
         const reverse = toEntries(comp.reversePhaseSolvents, 'solvent');
         const buffers = toEntries(comp.buffers, 'buffer');
         const modifiers = toEntries(comp.modifiers, 'modifier');
-        const gradientRows = Array.isArray(comp.gradientRows) && comp.gradientRows.length ? comp.gradientRows : [{ from: 0, to: 10, values: {} }];
+        const split = dedupeRecurringLists([
+          { list: 'normal', entries: normal },
+          { list: 'reverse', entries: reverse },
+          { list: 'buffers', entries: buffers },
+          { list: 'modifiers', entries: modifiers }
+        ]);
+        const gradientRows = (Array.isArray(comp.gradientRows) && comp.gradientRows.length ? comp.gradientRows : [{ time: 0, values: {} }, { time: 10, values: {} }]).map(row => {
+          if (row && row.from !== undefined && row.to !== undefined && row.time === undefined) {
+            return { time: Number(row.from || 0), values: row.values || {} };
+          }
+          return { time: Number((row && row.time) || 0), values: (row && row.values) || {} };
+        }).filter(row => Number.isFinite(row.time))
+          .sort((a, b) => a.time - b.time)
+          .filter((row, index, rows) => index === 0 || Number(row.time) !== Number(rows[index - 1].time));
         answers[question.id + '_run'] = comp.run !== undefined ? String(comp.run) : (answers[question.id + '_run'] || '');
         answers[question.id + '_flow'] = comp.flow !== undefined ? String(comp.flow) : (answers[question.id + '_flow'] || '');
         answers[question.id + '_gradient_flow'] = comp.gradientFlow !== undefined ? String(comp.gradientFlow) : (comp.flow !== undefined ? String(comp.flow) : (answers[question.id + '_gradient_flow'] || ''));
         answers[question.id + '_gradient_mode'] = comp.gradientMode === 'gradient' ? 'gradient' : 'isocratic';
-        answers[question.id + '_normal_phase_solvent_entries'] = JSON.stringify(normal);
-        answers[question.id + '_reverse_phase_solvent_entries'] = JSON.stringify(reverse);
-        answers[question.id + '_buffer_entries'] = JSON.stringify(buffers);
-        answers[question.id + '_modifier_entries'] = JSON.stringify(modifiers);
+        answers[question.id + '_normal_phase_solvent_entries'] = JSON.stringify(split.normal);
+        answers[question.id + '_reverse_phase_solvent_entries'] = JSON.stringify(split.reverse);
+        answers[question.id + '_buffer_entries'] = JSON.stringify(split.buffers);
+        answers[question.id + '_modifier_entries'] = JSON.stringify(split.modifiers);
         answers[question.id + '_gradient_rows'] = JSON.stringify(gradientRows);
         answers[question.id] = comp.total !== undefined ? String(comp.total) : (answers[question.id] || '');
-        console.info('[PharmaScore] Normalized recurring cost calculator:', { id: question.id, normal: normal.length, reverse: reverse.length, buffers: buffers.length, modifiers: modifiers.length, gradientMode: answers[question.id + '_gradient_mode'] });
         return;
       }
       if (question.type === 'equipment_checklist' && Array.isArray(value)) {
@@ -330,7 +336,6 @@
         answers[question.id + '_items'] = JSON.stringify(items);
         const customItems = value.filter(item => item && typeof item === 'object' && item.name && !builtInNames.has(String(item.name).toLowerCase()) && Number(item.price) > 0);
         if (customItems.length) answers[question.id + '_other_items'] = JSON.stringify(customItems);
-        console.info('[PharmaScore] Normalized checklist:', { id: question.id, itemCount: items.length, items });
         delete answers[question.id];
       }
     });
@@ -340,16 +345,70 @@
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   }
 
-  function findBestLabel(labels, value) {
-    const normalized = normalizeLabel(value);
-    return labels.find(label => normalizeLabel(label) === normalized)
-      || labels.find(label => normalizeLabel(label).includes(normalized) || normalized.includes(normalizeLabel(label)));
+  function dedupeRecurringLists(lists) {
+    const byName = new Map();
+    lists.forEach(({ list, entries }) => (entries || []).forEach(entry => {
+      const key = normalizeLabel(entry && entry.name);
+      if (!key) return;
+      const existing = byName.get(key);
+      if (!existing) { byName.set(key, { entry, list }); return; }
+      if (Number(entry.price || 0) > Number(existing.entry.price || 0)) byName.set(key, { entry, list });
+    }));
+    const result = {};
+    lists.forEach(({ list }) => { result[list] = []; });
+    byName.forEach(({ entry, list }) => result[list].push(entry));
+    return result;
   }
 
-  function findBestOption(options, value, field) {
+  function levenshtein(a, b) {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    let prev = new Array(b.length + 1).fill(0).map((_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const curr = [i];
+      for (let j = 1; j <= b.length; j++) {
+        curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = curr;
+    }
+    return prev[b.length];
+  }
+
+  function labelSimilarity(a, b) {
+    const maxLen = Math.max(a.length, b.length);
+    return maxLen ? 1 - levenshtein(a, b) / maxLen : 1;
+  }
+
+  function findBestLabel(labels, value) {
     const normalized = normalizeLabel(value);
-    return options.find(option => normalizeLabel(option[field]) === normalized)
-      || options.find(option => normalizeLabel(option[field]).includes(normalized) || normalized.includes(normalizeLabel(option[field])));
+    if (!normalized) return null;
+    const exact = labels.find(label => normalizeLabel(label) === normalized);
+    if (exact) return exact;
+    const contains = labels.find(label => normalizeLabel(label).includes(normalized) || normalized.includes(normalizeLabel(label)));
+    if (contains) return contains;
+    const scored = labels.map(label => ({ label, sim: labelSimilarity(normalizeLabel(label), normalized) }))
+      .filter(candidate => candidate.sim >= 0.75)
+      .sort((a, b) => b.sim - a.sim);
+    return scored.length ? scored[0].label : null;
+  }
+
+  function findBestOption(options, value, field, referencePrice) {
+    const normalized = normalizeLabel(value);
+    if (!normalized) return null;
+    const exact = options.find(option => normalizeLabel(option[field]) === normalized);
+    if (exact) return exact;
+    const contains = options.find(option => normalizeLabel(option[field]).includes(normalized) || normalized.includes(normalizeLabel(option[field])));
+    if (contains) return contains;
+    const candidates = options.map(option => ({ option, sim: labelSimilarity(normalizeLabel(option[field]), normalized) }))
+      .filter(candidate => candidate.sim >= 0.75);
+    if (!candidates.length) return null;
+    if (Number(referencePrice) > 0) {
+      candidates.sort((a, b) => (b.sim - a.sim) || (Math.abs(Number(a.option.price || 0) - Number(referencePrice)) - Math.abs(Number(b.option.price || 0) - Number(referencePrice))));
+    } else {
+      candidates.sort((a, b) => b.sim - a.sim);
+    }
+    return candidates[0].option;
   }
 
   Object.defineProperties(window, {

@@ -160,7 +160,6 @@
         const scores = calculateScores(QUESTION_AREAS, ANSWERS, ANALYSIS_MODE);
         renderEquipmentPriceSummary();
         renderResultsGraphic(scores);
-        document.getElementById('debug-scores').textContent = 'Scores: ' + JSON.stringify(scores);
       });
     }
   });

@@ -14,7 +14,6 @@
       pages.push(content.items.map(item => item.str || '').join(' '));
     }
     const text = pages.join('\n\n').replace(/\s+/g, ' ').trim();
-    console.info('[PharmaScore] PDF text extracted:', { pages: pdf.numPages, characters: text.length });
     if (!text) throw new Error('No selectable text was found in this PDF. Scanned image PDFs are not supported.');
     return text;
   }

@@ -14,7 +14,7 @@ function renderResultsGraphic(scores) {
   const maxOrbit = 400;
   const nodeOrbit = Math.max(minOrbit, Math.min(maxOrbit, Math.floor(Math.min(cx, cy) - 160)));
   const fontFamily = `Roboto, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, 'Noto Sans', sans-serif`;
-  const labelFontSize = 18 * 1.2;
+  const labelFontSize = 17;
   const labelColor = '#1e293b';
   const scoreFontSize = 42 * 1.2;
   const scoreFontWeight = 700;
@@ -35,6 +35,16 @@ function renderResultsGraphic(scores) {
     if (score >= 70) return 'node-green';
     if (score >= 40) return 'node-yellow';
     return 'node-red';
+  }
+
+  function getNodeColor(score) {
+    if (score >= 70) return '#28a745';
+    if (score >= 40) return '#e8a21b';
+    return '#dc3545';
+  }
+
+  function escText(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   // --- Ring gradient ---
@@ -63,6 +73,9 @@ function renderResultsGraphic(scores) {
       <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000000" flood-opacity="0.12" />
       </filter>
+      <filter id="chip-shadow" x="-40%" y="-60%" width="180%" height="220%">
+        <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#0f1f2e" flood-opacity="0.12" />
+      </filter>
       <g id="node-green">
         <polygon points="-70,-105 70,-105 0,-15" fill="#48c764" stroke="#48c764" stroke-width="1" />
         <polygon points="70,-105 120,-10 0,120 0,-15" fill="#28a745" stroke="#28a745" stroke-width="1" />
@@ -81,7 +94,7 @@ function renderResultsGraphic(scores) {
     </defs>
   `;
 
-  // --- Nodes ---
+  // --- Petals (node + label chip) ---
   for (let i = 0; i < n; ++i) {
     const angle = (360 / n) * i - 90;
     const rad = (angle * Math.PI) / 180;
@@ -89,20 +102,28 @@ function renderResultsGraphic(scores) {
     const nodeY = cy + nodeOrbit * Math.sin(rad);
     const score = Math.round(values[i]);
     const nodeId = getNodeId(score);
+    const nodeColor = getNodeColor(score);
     // Rotate node so it points toward the center
     const nodeRotation = angle + 90;
+    // Label chip sits further out along the same ray, offset relative to the node
+    const labelDist = nodeOrbit + 130;
+    const labelLocalX = (labelDist - nodeOrbit) * Math.cos(rad);
+    const labelLocalY = (labelDist - nodeOrbit) * Math.sin(rad);
+    const title = escText(keys[i]);
     svg += `
-      <g transform="translate(${nodeX}, ${nodeY}) rotate(${nodeRotation})" filter="url(#shadow)">
-        <use href="#${nodeId}" />
+      <g transform="translate(${nodeX}, ${nodeY})">
+        <g class="petal" data-category="${title}">
+          <g class="petal-crystal" transform="rotate(${nodeRotation})" filter="url(#shadow)">
+            <use href="#${nodeId}" />
+          </g>
+          <text class="petal-score" x="0" y="${18}" text-anchor="middle" dominant-baseline="middle" font-size="${scoreFontSize}" font-family="${fontFamily}" font-weight="${scoreFontWeight}" fill="#ffffff">${score}</text>
+          <g class="petal-label" transform="translate(${labelLocalX.toFixed(2)}, ${labelLocalY.toFixed(2)})" filter="url(#chip-shadow)">
+            <rect class="label-chip" x="-128" y="-28" width="256" height="56" rx="28" fill="#ffffff" stroke="${nodeColor}" stroke-width="2.5" />
+            <circle class="label-dot" cx="-104" cy="0" r="6.5" fill="${nodeColor}" />
+            <text class="label-title" x="4" y="2" text-anchor="middle" dominant-baseline="middle" font-size="${labelFontSize}" font-family="${fontFamily}" font-weight="700" letter-spacing="0.3" fill="${labelColor}">${title}</text>
+          </g>
+        </g>
       </g>
-      <text x="${nodeX}" y="${nodeY + 18}" text-anchor="middle" dominant-baseline="middle" font-size="${scoreFontSize}" font-family="${fontFamily}" font-weight="${scoreFontWeight}" fill="#fff">${score}</text>
-    `;
-    // Label
-    const labelDist = nodeOrbit + 110;
-    const labelX = cx + labelDist * Math.cos(rad);
-    const labelY = cy + labelDist * Math.sin(rad);
-    svg += `
-      <text x="${labelX}" y="${labelY + 8}" text-anchor="middle" dominant-baseline="middle" font-size="${labelFontSize}" font-family="${fontFamily}" font-weight="700" fill="${labelColor}" style="pointer-events:none;">${keys[i]}</text>
     `;
   }
 
