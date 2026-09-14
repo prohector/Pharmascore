@@ -1,4 +1,55 @@
 //Scoring engine using dimension, method, params, and weight columns
+function scoreInverseCostValue(value, method, params) {
+	const cost = Number(value);
+	if (!Number.isFinite(cost) || cost < 0) return null;
+	let minimum = Number(params.base);
+	let maximum = Number(params.max);
+	if (!Number.isFinite(maximum) && Number.isFinite(minimum) && Number(params.range) > 1) {
+		maximum = minimum * Number(params.range);
+	}
+	if (params.source) {
+		const source = Array.isArray(window[params.source]) ? window[params.source] : [];
+		const field = params.field || 'price';
+		const prices = source.map(item => Number(item[field])).filter(price => Number.isFinite(price) && price > 0);
+		if (!prices.length) return null;
+		minimum = Math.min(...prices);
+		maximum = Math.max(...prices);
+	}
+	if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum <= minimum || cost <= minimum) return 100;
+	if (cost >= maximum) return 0;
+	const denominator = method === 'inverse_linear'
+		? maximum - minimum
+		: Math.log(maximum / minimum);
+	const position = method === 'inverse_linear'
+		? (cost - minimum) / denominator
+		: Math.log(cost / minimum) / denominator;
+	return Math.max(0, Math.min(100, 100 * (1 - position)));
+}
+
+function scoreCustomQuestionValue(value, method, params) {
+	if (method === 'inverse_rating') {
+		const cost = Number(value);
+		if (!Number.isFinite(cost) || cost < 0) return null;
+		let rating;
+		if (params.kind === 'linear') {
+			rating = 1 + Number(params.slope) * (cost - Number(params.base));
+		} else if (params.kind === 'log1p') {
+			rating = 1 + 9 * Math.log1p(cost) / Math.log(Number(params.range));
+		} else if (params.kind === 'log_ratio') {
+			rating = cost <= Number(params.base)
+			? 1
+			: 1 + 9 * Math.log(cost / Number(params.base)) / Math.log(Number(params.range));
+		} else {
+			return null;
+		}
+		if (!Number.isFinite(rating)) return null;
+		rating = Math.max(1, Math.min(10, rating));
+		return 100 * (10 - rating) / 9;
+	}
+	if (method !== 'inverse_log' && method !== 'inverse_linear') return null;
+	return scoreInverseCostValue(value, method, params);
+}
+
 function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 	function getQuestionWeight(q) {
 		const modeKey = analysisMode === 'routine' ? 'weight_routine' : 'weight_advanced';
@@ -10,6 +61,7 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 	const dimScores = {};
 	const dimWeights = {};
 	const contributions = {}; // per-dimension list of question contributions for debugging
+	const scoringAudit = [];
 	for (const area of QUESTION_AREAS) {
 		for (const q of area.questions) {
 			const dim = q.dimension;
@@ -17,43 +69,79 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 			let score = null;
 			let ruleDetail = null;
 			const weight = getQuestionWeight(q);
-			if (!q.method || !q.params) continue;
+			const val = ANSWERS[q.id];
+			const audit = {
+				section: area.title,
+				id: q.id,
+				question: q.text,
+				method: q.method || '',
+				rawAnswer: val,
+				weight: weight,
+				weightColumn: analysisMode === 'routine' ? 'weight_routine' : 'weight_advanced',
+				status: 'not scored'
+			};
+			audit.activeRanges = null;
+			if (!q.method || !q.params) {
+				audit.status = 'missing method or parameters';
+				scoringAudit.push(audit);
+				continue;
+			}
 			let params;
 			try {
 				params = typeof q.params === 'object' ? q.params : JSON.parse(q.params);
 			} catch (e) {
 				console.warn('Malformed params for question', q.id, q.params);
+				audit.status = 'malformed parameters';
+				scoringAudit.push(audit);
 				continue;
 			}
-			const val = ANSWERS[q.id];
-			if (q.method === 'threshold' && (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist')) {
-				if (!params.ranges || !Array.isArray(params.ranges)) {
+			const customScore = scoreCustomQuestionValue(val, q.method, params);
+			if (customScore !== null) {
+				score = customScore;
+				ruleDetail = { type: q.method, params, input: Number(val), output: score };
+			} else if (q.method === 'threshold' && (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist')) {
+				const activeRanges = Array.isArray(params.ranges)
+					? params.ranges
+					: params[analysisMode] && Array.isArray(params[analysisMode].ranges)
+						? params[analysisMode].ranges
+						: null;
+				if (!activeRanges) {
 					console.warn('Missing or invalid ranges for threshold question', q.id);
+					audit.status = 'invalid rule';
+					scoringAudit.push(audit);
 					continue;
 				}
 				const num = parseFloat(val);
-				if (isNaN(num)) continue;
-				// Find the best matching range. choose the matching range with highest score
-				let best = null;
-				for (const r of params.ranges) {
-					if (typeof r.max !== 'number' || typeof r.score !== 'number') continue;
-					if (num <= r.max) {
-						if (best === null || r.score > best.score) best = r;
-					}
+				if (isNaN(num)) {
+					audit.status = 'unanswered or non-numeric';
+					scoringAudit.push(audit);
+					continue;
 				}
+				const validRanges = activeRanges
+					.filter(range => typeof range.max === 'number' && typeof range.score === 'number')
+					.sort((a, b) => a.max - b.max);
+				const best = validRanges.find(range => num <= range.max) || null;
 				if (best) {
 					score = best.score;
 					ruleDetail = { type: 'threshold', matchedRange: best };
+					audit.activeRanges = activeRanges;
 				} else {
 					score = 0;
 					ruleDetail = { type: 'threshold', matchedRange: null };
+					audit.activeRanges = activeRanges;
 				}
 			} else if (q.method === 'lookup' && (q.type === 'dropdown' || q.type === 'boolean')) {
 				if (!params || typeof params !== 'object') {
 					console.warn('Missing or invalid params for lookup question', q.id);
+					audit.status = 'invalid rule';
+					scoringAudit.push(audit);
 					continue;
 				}
-				if (val === undefined || val === null || val === '') continue;
+				if (val === undefined || val === null || val === '') {
+					audit.status = 'unanswered';
+					scoringAudit.push(audit);
+					continue;
+				}
 				if (val in params) {
 					score = params[val];
 					ruleDetail = { type: 'lookup', matchedKey: val, mappedValue: params[val] };
@@ -65,10 +153,16 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 			} else if (q.method === 'formula' && q.type === 'number') {
 				if (!params.expr || typeof params.expr !== 'string') {
 					console.warn('Missing or invalid expr for formula question', q.id);
+					audit.status = 'invalid rule';
+					scoringAudit.push(audit);
 					continue;
 				}
 				const num = parseFloat(val);
-				if (isNaN(num)) continue;
+				if (isNaN(num)) {
+					audit.status = 'unanswered or non-numeric';
+					scoringAudit.push(audit);
+					continue;
+				}
 				try {
 					const expr = params.expr.replace(/value/g, '(' + num + ')');
 					score = Function('return ' + expr)();
@@ -91,7 +185,14 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 				const weightedPoints = points * weight;
 				if (!contributions[dim]) contributions[dim] = [];
 				contributions[dim].push({ id: q.id, text: q.text, rawAnswer: val, score: score, weight: weight, weighted: score * weight, points: points, weightedPoints: weightedPoints, ruleDetail });
+				audit.score = score;
+				audit.points = points;
+				audit.weightedScore = score * weight;
+				audit.weightedPoints = weightedPoints;
+				audit.rule = ruleDetail;
+				audit.status = 'scored';
 			}
+			scoringAudit.push(audit);
 		}
 	}
 	// Derive final judging categories dynamically from QUESTION_AREAS
@@ -128,6 +229,25 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 	// Debug output: structured per-dimension breakdown with exact per-answer scores
 	try {
 		console.groupCollapsed && console.groupCollapsed('calculateScores — detailed debug');
+		console.log('Scoring configuration:', {
+			analysisMode,
+			questionCount: scoringAudit.length,
+			scoredQuestionCount: scoringAudit.filter(item => item.status === 'scored').length,
+			skippedQuestionCount: scoringAudit.filter(item => item.status !== 'scored').length
+		});
+		console.table(scoringAudit.map(item => ({
+			section: item.section,
+			id: item.id,
+			method: item.method,
+			status: item.status,
+			rawAnswer: item.rawAnswer,
+			weight: item.weight,
+			weightColumn: item.weightColumn,
+			score: item.score === undefined ? '' : Number(item.score.toFixed(4)),
+			weightedScore: item.weightedScore === undefined ? '' : Number(item.weightedScore.toFixed(4)),
+			activeRanges: item.activeRanges ? JSON.stringify(item.activeRanges) : '',
+			rule: item.rule ? JSON.stringify(item.rule) : ''
+		})));
 		console.log('Normalized section scores:', Object.fromEntries(Object.entries(normalizedScores).map(([k,v])=>[k, Number(v.toFixed(4))])));
 		console.log('Raw weighted totals:', dimScores);
 		console.log('Total weights:', dimWeights);
@@ -162,6 +282,8 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 						if (rd.type === 'threshold') {
 							if (rd.matchedRange) ruleDesc = `(threshold: <= ${rd.matchedRange.max} → ${rd.matchedRange.score})`;
 							else ruleDesc = `(threshold: no match → 0)`;
+						} else if (rd.type === 'inverse_log' || rd.type === 'inverse_linear' || rd.type === 'inverse_rating') {
+							ruleDesc = `(${rd.type}: inverse cost, normalized 0–100)`;
 						} else if (rd.type === 'lookup') {
 							ruleDesc = `(lookup: ${rd.matchedKey} → ${String(rd.mappedValue)})`;
 						} else if (rd.type === 'formula') {
@@ -177,6 +299,12 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 			const sp = sectionPoints[dim] || { totalWeightedPoints: 0, sectionMaxPoints: 0 };
 			console.log('section points:', sp.totalWeightedPoints.toFixed(4), '/', sp.sectionMaxPoints.toFixed(4), '(' + (sp.sectionMaxPoints>0 ? ( (sp.totalWeightedPoints/sp.sectionMaxPoints*100).toFixed(2) + '%' ) : '0%') + ')');
 			console.log('weighted total (raw 0-100):', dimScores[dim] || 0, 'total weight:', dimWeights[dim] || 0);
+			console.log('category aggregation:', {
+				category: dim,
+				weightedScoreTotal: Number((dimScores[dim] || 0).toFixed(4)),
+				weightTotal: Number((dimWeights[dim] || 0).toFixed(4)),
+				finalScore: result[dim]
+			});
 			console.groupEnd && console.groupEnd();
 		}
 		console.groupEnd && console.groupEnd();
@@ -188,3 +316,4 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 
 // Export for browser global
 window.calculateScores = calculateScores;
+window.scoreCustomQuestionValue = scoreCustomQuestionValue;

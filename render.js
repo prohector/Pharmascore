@@ -27,7 +27,7 @@
     if (!area) return [];
     if (isFixedCostsArea(area)) {
       const selectedIds = new Set((getFixedCostSubTab().questionIds || []));
-      return area.questions.filter(q => selectedIds.has(q.id));
+      return area.questions.filter(q => selectedIds.has(q.id) && !(ANALYSIS_MODE === 'routine' && q.id === 'aux_pretreat_omics'));
     }
     if (isAnalyticalPerformanceArea(area)) {
       const selectedIds = new Set((getAnalyticalPerformanceSubTab().questionIds || []));
@@ -107,7 +107,18 @@
     if (!question) return 0;
     try {
       const params = typeof question.params === 'object' ? question.params : JSON.parse(question.params || '{}');
-      const matchingRange = (params.ranges || []).filter(range => Number(value) <= Number(range.max)).sort((a, b) => Number(b.score) - Number(a.score))[0];
+      if (typeof window.scoreCustomQuestionValue === 'function') {
+        const customScore = window.scoreCustomQuestionValue(value, question.method, params);
+        if (customScore !== null) return customScore;
+      }
+      const activeRanges = Array.isArray(params.ranges)
+        ? params.ranges
+        : params[ANALYSIS_MODE] && Array.isArray(params[ANALYSIS_MODE].ranges)
+          ? params[ANALYSIS_MODE].ranges
+          : [];
+      const matchingRange = activeRanges
+        .filter(range => Number(value) <= Number(range.max))
+        .sort((a, b) => Number(a.max) - Number(b.max))[0];
       return matchingRange ? Number(matchingRange.score) : 0;
     } catch {
       return 0;
@@ -1136,7 +1147,8 @@
         hasMissingAmounts = true;
         return sum;
       }
-      return sum + (price * amount);
+      const solventPerLitre = questionId === 'sample_pretreat_solvent';
+      return sum + (price * amount * (solventPerLitre ? 1 / 1000 : 1));
     }, 0);
 
     if (isSamplePretreatment && (checked.length === 0 || hasMissingAmounts)) {

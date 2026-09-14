@@ -2,9 +2,16 @@
 
 const MISTRAL_MODEL = 'mistral-small-latest';
 const REQUEST_TIMEOUT_MS = 15000;
-const MAX_IP_QUERIES_PER_MINUTE = 5;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const ipQueryHistory = new Map();
+
+// Input-size guards for the fill_questionnaire prompt.
+const MAX_TEXT_LENGTH = 120000;
+const MAX_SCHEMA_JSON_LENGTH = 60000;
+const MAX_PROMPT_LENGTH = 160000;
+
+// Local fallback rate counter — used only if the Rate Limiting binding is unavailable.
+const LOCAL_RATE_LIMIT = 5;
+const LOCAL_RATE_WINDOW_MS = 60 * 1000;
+const localQueryHistory = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -23,8 +30,14 @@ export default {
       return corsResponse(jsonResponse({ success: false, error: 'Invalid request body' }, 400));
     }
 
+    // Shared-secret gate: applied to both request paths before any Mistral call.
+    const appSecret = request.headers.get('x-app-secret');
+    if (!env.APP_SHARED_SECRET || appSecret !== env.APP_SHARED_SECRET) {
+      return corsResponse(jsonResponse({ success: false, error: 'Unauthorized: missing or invalid app secret.' }, 401));
+    }
+
     const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
-    const rateLimit = checkIpRateLimit(clientIp);
+    const rateLimit = await checkRateLimit(env, clientIp);
     if (!rateLimit.allowed) {
       return corsResponse(jsonResponse({ success: false, error: rateLimit.error, rateLimited: true }, 429));
     }
@@ -63,21 +76,52 @@ export default {
   }
 };
 
-function checkIpRateLimit(clientIp) {
+// Uses the Cloudflare Rate Limiting binding, which is reliable across Worker isolates.
+// Falls back to a per-isolate in-memory counter only if the binding is not configured.
+async function checkRateLimit(env, clientIp) {
+  const rateLimiter = env && env.RATE_LIMITER;
+  if (rateLimiter && typeof rateLimiter.limit === 'function') {
+    try {
+      const result = await rateLimiter.limit({ key: clientIp });
+      if (result && result.success === false) {
+        return { allowed: false, error: 'Please wait before making more AI requests. The limit is 5 per minute.' };
+      }
+      return { allowed: true };
+    } catch {
+      // Binding errored (e.g. namespace not provisioned) — degrade gracefully.
+      return checkLocalRateLimit(clientIp);
+    }
+  }
+  return checkLocalRateLimit(clientIp);
+}
+
+function checkLocalRateLimit(clientIp) {
   const now = Date.now();
-  const recentQueries = (ipQueryHistory.get(clientIp) || []).filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_MS);
-  if (recentQueries.length >= MAX_IP_QUERIES_PER_MINUTE) {
+  const recent = (localQueryHistory.get(clientIp) || []).filter(ts => now - ts < LOCAL_RATE_WINDOW_MS);
+  if (recent.length >= LOCAL_RATE_LIMIT) {
     return { allowed: false, error: 'Please wait before making more AI requests. The limit is 5 per minute.' };
   }
-  recentQueries.push(now);
-  ipQueryHistory.set(clientIp, recentQueries);
+  recent.push(now);
+  localQueryHistory.set(clientIp, recent);
   return { allowed: true };
 }
 
 async function fillQuestionnaireFromPdf(pdfText, questionnaire, env) {
   const text = String(pdfText || '').trim();
-  if (!text || text.length > 120000 || !questionnaire || typeof questionnaire !== 'object') {
+  if (!text || text.length > MAX_TEXT_LENGTH || !questionnaire || typeof questionnaire !== 'object') {
     return { success: false, error: 'The PDF text or questionnaire schema is missing or too large.' };
+  }
+  let schemaJson;
+  try {
+    schemaJson = JSON.stringify(questionnaire);
+  } catch {
+    return { success: false, error: 'The questionnaire schema could not be serialized.' };
+  }
+  if (schemaJson.length > MAX_SCHEMA_JSON_LENGTH) {
+    return { success: false, error: `The questionnaire schema is too large (${schemaJson.length} characters; the limit is ${MAX_SCHEMA_JSON_LENGTH}).` };
+  }
+  if (schemaJson.length + text.length > MAX_PROMPT_LENGTH) {
+    return { success: false, error: 'The combined questionnaire schema and PDF text exceed the maximum prompt size for a single request.' };
   }
   const prompt = [
     'You fill a pharmaceutical laboratory questionnaire from extracted selectable PDF text.',
@@ -91,7 +135,7 @@ async function fillQuestionnaireFromPdf(pdfText, questionnaire, env) {
     'For equipment_checklist questions, return an array of exact item names, each name at most once (no duplicates). For sample pretreatment checklists, return objects such as {"name":"Item name","amount":2} with the amount in the appropriate unit (mL for solvents, g for reagents, quantity for materials) when stated; if no amount is stated use 1. For an item not in availableAnswers, include an estimated positive price as {"name":"Item name","amount":2,"price":25}; do not return one combined string.',
     'For recurring_cost_calculator questions, return an object describing the mobile phase composition using the question value as a template, including run (min), flow (mL/min), gradientMode ("isocratic" or "gradient"), gradientFlow, normalPhaseSolvents and reversePhaseSolvents as [{name, percent, price}], buffers and modifiers as [{name, amountMgPerL, price}], and gradientRows as [{time, values:{A,B,...}}] where time is the time point in minutes and the first solvent letter (A) is auto-computed so each row totals 100%. List every solvent, buffer and modifier exactly once across all lists (a solvent belongs either to normalPhaseSolvents or reversePhaseSolvents, never both); do not repeat the same item. Give each gradient time point a unique, increasing time value. Use prices only when stated in the PDF; otherwise keep them as zero.',
     'For ordinary dropdown questions, return exactly one value from availableAnswers. For booleans, return true or false.',
-    `QUESTIONNAIRE SCHEMA:\n${JSON.stringify(questionnaire)}`,
+    `QUESTIONNAIRE SCHEMA:\n${schemaJson}`,
     `EXTRACTED PDF TEXT:\n${text}`
   ].join('\n\n');
   const response = await fetchMistralJson(prompt, env);
@@ -134,45 +178,9 @@ async function fetchMistralJson(prompt, env) {
 
 async function getPriceEstimate(name, country, unit, question, env) {
   const prompt = buildPrompt(name, country, unit, question);
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  let mistralRes;
-  try {
-    mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${env.MistralAPI}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: MISTRAL_MODEL,
-        temperature: 0.1,
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!mistralRes.ok) {
-    throw new Error(`Mistral request failed: ${mistralRes.status}`);
-  }
-
-  const data = await mistralRes.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from Mistral');
-
-  let parsed;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error('Could not parse price estimate response');
-  }
-
+  // Reuse the shared Mistral call/parse helper; throws on failure so the fetch
+  // handler returns the same 502 response as before.
+  const parsed = await fetchMistralJson(prompt, env);
   const price = Number(parsed.price);
   if (!Number.isFinite(price) || price <= 0) {
     return {
@@ -216,6 +224,6 @@ function corsResponse(response) {
   const headers = new Headers(response.headers);
   headers.set('Access-Control-Allow-Origin', '*');
   headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, x-app-secret');
   return new Response(response.body, { status: response.status, headers });
 }

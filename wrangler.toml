@@ -1,0 +1,13 @@
+name = "misty-waterfall-054f"
+main = "worker.js"
+compatibility_date = "2026-08-19"
+
+# Cloudflare Rate Limiting binding (reliable across Worker isolates).
+# Enforces 5 calls per 60s per key (the client IP) before any Mistral call.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "429001"
+
+  [ratelimits.simple]
+  limit = 5
+  period = 60

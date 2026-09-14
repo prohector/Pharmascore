@@ -3,6 +3,11 @@ const MAX_SESSION_QUERIES = 20;
 const MAX_MINUTE_QUERIES = 5;
 const MINUTE_MS = 60 * 1000;
 
+// Shared secret used to authenticate requests to the Worker.
+// IMPORTANT: set this to the SAME value you used for:
+//   wrangler secret put APP_SHARED_SECRET
+const APP_SHARED_SECRET = 'marko';
+
 function checkAndRecordQuery() {
   const now = Date.now();
   const stored = sessionStorage.getItem('pharmascore_price_queries');
@@ -39,7 +44,7 @@ export async function lookupChemicalPrice(name, country = 'US', unit = 'g', ques
   try {
     const response = await fetch(WORKER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-app-secret': APP_SHARED_SECRET },
       body: JSON.stringify({ name: chemicalName, country, unit: priceUnit, question })
     });
     const data = await response.json().catch(() => ({}));
@@ -60,7 +65,7 @@ export async function requestQuestionnaireFill(pdfText, questionnaire) {
   try {
     const response = await fetch(WORKER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-app-secret': APP_SHARED_SECRET },
       body: JSON.stringify({ action: 'fill_questionnaire', pdfText: text.slice(0, 120000), questionnaire })
     });
     const data = await response.json().catch(() => ({}));
