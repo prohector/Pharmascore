@@ -50,7 +50,8 @@ export default {
       try {
         const result = await fillQuestionnaireFromPdf(body.pdfText, body.questionnaire, env);
         return corsResponse(jsonResponse(result, 200));
-      } catch {
+      } catch (error) {
+        console.error('[PharmaScore] Questionnaire Mistral request failed:', error instanceof Error ? error.message : String(error));
         return corsResponse(jsonResponse({ success: false, error: 'The PDF questionnaire could not be interpreted right now.' }, 502));
       }
     }
@@ -68,6 +69,7 @@ export default {
       const estimate = await getPriceEstimate(name, country, unit, question, env);
       return corsResponse(jsonResponse(estimate, 200));
     } catch (err) {
+      console.error('[PharmaScore] Price Mistral request failed:', err instanceof Error ? err.message : String(err));
       return corsResponse(jsonResponse({
         success: false,
         error: 'Price estimate unavailable right now. Please try again or enter a price manually.'

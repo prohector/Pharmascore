@@ -1,34 +1,34 @@
-category,name,price,unit
-Solvent used,Acetone,0.03,mL
-Solvent used,Acetonitrile (LCMS grade),0.12,mL
-Solvent used,Benzene,0.05,mL
-Solvent used,Butanol (nbutanol),0.04,mL
-Solvent used,Chloroform,0.05,mL
-Solvent used,Cyclohexane,0.04,mL
-Solvent used,Dichloromethane (DCM),0.05,mL
-Solvent used,Diethyl ether,0.04,mL
-Solvent used,Dimethylformamide (DMF),0.06,mL
-Solvent used,Dimethyl sulfoxide (DMSO),0.07,mL
-Solvent used,Ethanol (absolute),0.03,mL
-Solvent used,Ethyl acetate,0.04,mL
-Solvent used,Formic acid (LCMS grade),0.20,mL
-Solvent used,Heptane,0.04,mL
-Solvent used,Hexane,0.04,mL
-Solvent used,Isobutanol,0.04,mL
-Solvent used,Isooctane,0.05,mL
-Solvent used,Isopropanol (IPA),0.03,mL
-Solvent used,Methanol (LCMS grade),0.08,mL
-Solvent used,Methyl tertbutyl ether (MTBE),0.05,mL
-Solvent used,"N,NDimethylacetamide (DMA)",0.06,mL
-Solvent used,nPentane,0.04,mL
-Solvent used,Petroleum ether,0.03,mL
-Solvent used,Propanol (1propanol),0.03,mL
-Solvent used,Propylene carbonate,0.10,mL
-Solvent used,Pyridine,0.10,mL
-Solvent used,Sodium hydroxide solution (NaOH),0.02,mL
-Solvent used,Sulfuric acid (H₂SO₄),0.02,mL
-Solvent used,Tetrahydrofuran (THF),0.06,mL
-Solvent used,Toluene,1.48,mL
+category,name,price,unit,nfpa
+Solvent used,Acetone,0.03,mL,3
+Solvent used,Acetonitrile (LCMS grade),0.12,mL,2
+Solvent used,Benzene,0.05,mL,3
+Solvent used,Butanol (nbutanol),0.04,mL,3
+Solvent used,Chloroform,0.05,mL,1
+Solvent used,Cyclohexane,0.04,mL,3
+Solvent used,Dichloromethane (DCM),0.05,mL,1
+Solvent used,Diethyl ether,0.04,mL,4
+Solvent used,Dimethylformamide (DMF),0.06,mL,2
+Solvent used,Dimethyl sulfoxide (DMSO),0.07,mL,1
+Solvent used,Ethanol (absolute),0.03,mL,3
+Solvent used,Ethyl acetate,0.04,mL,3
+Solvent used,Formic acid (LCMS grade),0.20,mL,2
+Solvent used,Heptane,0.04,mL,3
+Solvent used,Hexane,0.04,mL,3
+Solvent used,Isobutanol,0.04,mL,3
+Solvent used,Isooctane,0.05,mL,3
+Solvent used,Isopropanol (IPA),0.03,mL,3
+Solvent used,Methanol (LCMS grade),0.08,mL,3
+Solvent used,Methyl tertbutyl ether (MTBE),0.05,mL,4
+Solvent used,"N,NDimethylacetamide (DMA)",0.06,mL,2
+Solvent used,nPentane,0.04,mL,4
+Solvent used,Petroleum ether,0.03,mL,4
+Solvent used,Propanol (1propanol),0.03,mL,3
+Solvent used,Propylene carbonate,0.10,mL,1
+Solvent used,Pyridine,0.10,mL,3
+Solvent used,Sodium hydroxide solution (NaOH),0.02,mL,0
+Solvent used,Sulfuric acid (H₂SO₄),0.02,mL,0
+Solvent used,Tetrahydrofuran (THF),0.06,mL,3
+Solvent used,Toluene,1.48,mL,3
 Reagent used,Acetic acid (glacial),0.03,mg
 Reagent used,Ammonium acetate solution,0.05,mg
 Reagent used,Ammonium hydroxide,0.03,mg

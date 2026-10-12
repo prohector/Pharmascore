@@ -97,9 +97,19 @@
     const scoreEl = document.getElementById('current-section-score');
     const area = QUESTION_AREAS[currentTab];
     if (!scoreEl || !area || typeof calculateScores !== 'function') return;
-    const scores = calculateScores(QUESTION_AREAS, ANSWERS, ANALYSIS_MODE);
+    const visibleQuestions = getQuestionsForCurrentView(area).filter(question => question && question.type !== 'label');
+    const scoreArea = { ...area, questions: visibleQuestions };
+    const scores = calculateScores([scoreArea], ANSWERS, ANALYSIS_MODE);
     const score = Number(scores[area.title] || 0);
-    scoreEl.innerHTML = `<span>${area.title} score: ${score}/100</span>`;
+    const subsectionTitle = isFixedCostsArea(area)
+      ? getFixedCostSubTab().title
+      : isAnalyticalPerformanceArea(area)
+        ? getAnalyticalPerformanceSubTab().title
+        : isAnalyticalConsumablesArea(area)
+          ? getAnalyticalConsumablesSubTab().title
+          : area.title;
+    scoreEl.innerHTML = `<span>${subsectionTitle} score: ${score}/100</span>`;
+    scoreEl.classList.remove('hidden');
   }
 
   function getQuestionThresholdScore(questionId, value) {
@@ -109,7 +119,7 @@
       const params = typeof question.params === 'object' ? question.params : JSON.parse(question.params || '{}');
       if (typeof window.scoreCustomQuestionValue === 'function') {
         const customScore = window.scoreCustomQuestionValue(value, question.method, params);
-        if (customScore !== null) return customScore;
+        if (customScore !== null) return Math.round(customScore);
       }
       const activeRanges = Array.isArray(params.ranges)
         ? params.ranges
@@ -119,7 +129,7 @@
       const matchingRange = activeRanges
         .filter(range => Number(value) <= Number(range.max))
         .sort((a, b) => Number(a.max) - Number(b.max))[0];
-      return matchingRange ? Number(matchingRange.score) : 0;
+      return matchingRange ? Math.round(Number(matchingRange.score)) : 0;
     } catch {
       return 0;
     }
@@ -866,7 +876,7 @@
         const avgPercent = (c1 + c2) / 2;
         const effectiveMin = duration * (avgPercent / 100);
         const volumeMl = effectiveMin * flowRate;
-        const cost = volumeMl * Number(entry.price || 0);
+        const cost = volumeMl * Number(entry.price || 0) / 1000;
         breakdown.push({ segment: i + 1, component: entry.name, basis: 'mL', fromMin: t1, toMin: t2, durationMin: duration, avgPercent, effectiveMin, volumeMl, costEUR: Number(cost.toFixed(6)) });
       });
       const w1 = Number(v1[firstLetter] ?? (water && water.percent) ?? 0) / 100;
@@ -1164,8 +1174,7 @@
     let score = 0;
     try {
       const params = question && typeof question.params === 'object' ? question.params : JSON.parse((question && question.params) || '{}');
-      const matchingRange = (params.ranges || []).filter(range => total <= Number(range.max)).sort((a, b) => Number(b.score) - Number(a.score))[0];
-      score = matchingRange ? Number(matchingRange.score) : 0;
+      score = getQuestionThresholdScore(questionId, total);
     } catch {
       score = 0;
     }
@@ -1233,7 +1242,7 @@
       gradientLetter: '',
       cost: (category === 'buffer' || category === 'modifier')
         ? price * percent * waterShare / 1000000
-        : price * (percent / 100)
+        : price * (percent / 100) / 1000
     };
 
     if (category === 'normal_phase_solvent') {
@@ -1287,42 +1296,96 @@
     }
     ANSWERS[questionId] = totalEl && totalEl.value ? totalEl.value : '';
     ANSWERS[questionId + '_total'] = totalEl && totalEl.value ? totalEl.value : '';
+    if (typeof window.updateCurrentSectionScore === 'function') window.updateCurrentSectionScore();
   }
 
   function updateHazardScore() {
     const totalEl = document.getElementById('green2');
-    if (!totalEl) return;
-    const solventByName = new Map((SOLVENT_OPTIONS || []).map(item => [normalizeRecurringEntryName(item.name), item]));
-    const findSolventReference = name => solventByName.get(normalizeRecurringEntryName(name)) || (SOLVENT_OPTIONS || []).find(item => {
-      const left = normalizeRecurringEntryName(item.name).replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '');
-      const right = normalizeRecurringEntryName(name).replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '');
-      return left && right && (left.includes(right) || right.includes(left));
-    });
+    const findSolventReference = (name, includeSampleCatalog = false) => {
+      const catalogs = includeSampleCatalog
+        ? [SOLVENT_OPTIONS || [], SAMPLE_PRETREATMENT_EQUIPMENT_OPTIONS || []]
+        : [SOLVENT_OPTIONS || []];
+      const normalized = normalizeRecurringEntryName(name);
+      for (const catalog of catalogs) {
+        const exact = catalog.find(item => normalizeRecurringEntryName(item.name) === normalized);
+        if (exact) return exact;
+      }
+      const compactName = normalized.replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '');
+      for (const catalog of catalogs) {
+        const match = catalog.find(item => {
+          const compactItem = normalizeRecurringEntryName(item.name).replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '');
+          return compactItem && compactName && (compactItem.includes(compactName) || compactName.includes(compactItem));
+        });
+        if (match) return match;
+      }
+      return null;
+    };
+    const parseSavedEntries = key => {
+      try {
+        const parsed = JSON.parse(ANSWERS[key] || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+    const mix = getRecurringMix('econ_rec1');
+    if (!mix.normalPhaseSolvents.length && !mix.reversePhaseSolvents.length) {
+      mix.normalPhaseSolvents = parseSavedEntries('econ_rec1_normal_phase_solvent_entries');
+      mix.reversePhaseSolvents = parseSavedEntries('econ_rec1_reverse_phase_solvent_entries');
+    }
+    if (!mix.gradientRows || !mix.gradientRows.length) {
+      mix.gradientRows = normalizeGradientRows(parseSavedEntries('econ_rec1_gradient_rows'));
+    }
+    if (!mix.gradientMode && ANSWERS.econ_rec1_gradient_mode) {
+      mix.gradientMode = ANSWERS.econ_rec1_gradient_mode;
+    }
+    const runTime = Number(document.getElementById('econ_rec1_run')?.value || ANSWERS.econ_rec1_run || 0) || 0;
+    const flowRate = Number(document.getElementById('econ_rec1_flow')?.value || ANSWERS.econ_rec1_flow || 0) || 0;
+    const gradientFlowRate = Number(document.getElementById('econ_rec1_gradient_flow')?.value || ANSWERS.econ_rec1_gradient_flow || 0) || 0;
+    syncGradientLetters('econ_rec1');
+    const solventEntries = [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])];
+    const solventVolumes = new Map();
+    if (mix.gradientMode === 'gradient' && gradientFlowRate > 0) {
+      const rows = normalizeGradientRows(mix.gradientRows).slice().sort((a, b) => a.time - b.time);
+      for (let index = 0; index < rows.length - 1; index += 1) {
+        const duration = Number(rows[index + 1].time) - Number(rows[index].time);
+        if (!Number.isFinite(duration) || duration <= 0) continue;
+        const firstValues = rows[index].values || {};
+        const secondValues = rows[index + 1].values || {};
+        solventEntries.forEach(entry => {
+          const firstPercent = Number(firstValues[entry.gradientLetter] ?? entry.percent ?? 0);
+          const secondPercent = Number(secondValues[entry.gradientLetter] ?? entry.percent ?? 0);
+          const averagePercent = (firstPercent + secondPercent) / 2;
+          const volumeMl = duration * gradientFlowRate * averagePercent / 100;
+          solventVolumes.set(entry.name, (solventVolumes.get(entry.name) || 0) + volumeMl);
+        });
+      }
+    } else {
+      solventEntries.forEach(entry => {
+        solventVolumes.set(entry.name, runTime * flowRate * Number(entry.percent || 0) / 100);
+      });
+    }
     let hazard = 0;
     const details = [];
-    const mix = getRecurringMix('econ_rec1');
-    const runTime = Number(document.getElementById('econ_rec1_run')?.value || 0) || 0;
-    const flowRate = Number(document.getElementById('econ_rec1_flow')?.value || 0) || 0;
-    [...(mix.normalPhaseSolvents || []), ...(mix.reversePhaseSolvents || [])].forEach(entry => {
+    solventEntries.forEach(entry => {
       const reference = findSolventReference(entry.name);
-      const volumeMl = runTime * flowRate * Number(entry.percent || 0) / 100;
-      const nfpa = Number(reference?.nfpa || entry.nfpa || 0);
+      const volumeMl = solventVolumes.get(entry.name) || 0;
+      const nfpa = Number(reference?.nfpa ?? entry.nfpa ?? 0);
       hazard += nfpa * volumeMl;
       details.push({ source: 'mobile phase', solvent: entry.name, nfpa, volumeMl, hazard: nfpa * volumeMl });
     });
-    ['sample_pretreat_solvent'].forEach(questionId => {
-      const list = document.getElementById(`${questionId}_equipment_list`);
-      list?.querySelectorAll('input[type="checkbox"]:checked').forEach(box => {
-        const amount = Number(document.getElementById(box.dataset.amountInputId)?.value || 0) || 0;
-        const reference = findSolventReference(box.value);
-        const nfpa = Number(reference?.nfpa || 0);
-        hazard += nfpa * amount;
-        details.push({ source: 'sample pretreatment', solvent: box.value, nfpa, volumeMl: amount, hazard: nfpa * amount });
-      });
+    const sampleList = document.getElementById('sample_pretreat_solvent_equipment_list');
+    sampleList?.querySelectorAll('input[type="checkbox"]:checked').forEach(box => {
+      const amount = Number(document.getElementById(box.dataset.amountInputId)?.value || 0) || 0;
+      const reference = findSolventReference(box.value, true);
+      const nfpa = Number(reference?.nfpa ?? 0);
+      hazard += nfpa * amount;
+      details.push({ source: 'sample pretreatment', solvent: box.value, nfpa, volumeMl: amount, hazard: nfpa * amount });
     });
-    totalEl.value = hazard.toFixed(2);
-    ANSWERS.green2 = totalEl.value;
-    ANSWERS.green2_total = totalEl.value;
+    const hazardValue = hazard.toFixed(2);
+    if (totalEl) totalEl.value = hazardValue;
+    ANSWERS.green2 = hazardValue;
+    ANSWERS.green2_total = hazardValue;
     console.table(details);
     console.log('[PharmaScore] NFPA hazard score:', hazard);
   }
@@ -1871,6 +1934,7 @@
         });
       }
     });
+    updateCurrentSectionScore();
   }
 
   function renderRelatedQuestionData() {
@@ -1954,7 +2018,7 @@
             price,
             disclaimer: '',
             gradientLetter: '',
-            cost: price * (percent / 100)
+            cost: price * (percent / 100) / 1000
           });
           const normalEntries = normal.length ? [makeEntry(normal[0].name, normal[0].price, 50, 'normal_phase_solvent')] : [];
           const reverseEntries = reverse.length ? [makeEntry(reverse[0].name, reverse[0].price, 50, 'reverse_phase_solvent')] : [];
@@ -2151,6 +2215,14 @@
         if (progress) progress.classList.add('hidden');
       });
     }
+
+    const downloadGraphic = (format) => {
+      if (typeof window.downloadResultsGraphic === 'function') window.downloadResultsGraphic(format);
+    };
+    const downloadSvgBtn = document.getElementById('download-results-svg');
+    const downloadPngBtn = document.getElementById('download-results-png');
+    if (downloadSvgBtn) downloadSvgBtn.addEventListener('click', () => downloadGraphic('svg'));
+    if (downloadPngBtn) downloadPngBtn.addEventListener('click', () => downloadGraphic('png'));
 
     if (typeof loadQuestionsFromCSV === 'function') {
       loadQuestionsFromCSV();

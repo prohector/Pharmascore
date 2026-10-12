@@ -122,6 +122,13 @@
     if (typeof window.updateCurrentSectionScore === 'function') window.updateCurrentSectionScore();
   });
 
+  document.addEventListener('change', function () {
+    updateConditionalVisibility();
+    checkFormValidity();
+    if (typeof window.updateHazardScore === 'function') window.updateHazardScore();
+    if (typeof window.updateCurrentSectionScore === 'function') window.updateCurrentSectionScore();
+  });
+
   document.addEventListener('DOMContentLoaded', function () {
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');

@@ -286,7 +286,7 @@
           const stamp = `${kind}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
           if (kind === 'solvent') {
             const percent = Number((entry && entry.percent) ?? 0);
-            return { id: stamp, name, percent, amountMgPerL: 0, price, disclaimer: (entry && entry.disclaimer) || '', gradientLetter: '', cost: price * (percent / 100) };
+            return { id: stamp, name, percent, amountMgPerL: 0, price, disclaimer: (entry && entry.disclaimer) || '', gradientLetter: '', cost: price * (percent / 100) / 1000 };
           }
           const amountMgPerL = Number((entry && entry.amountMgPerL) ?? (entry && entry.percent) ?? 0);
           return { id: stamp, name, percent: amountMgPerL, amountMgPerL, price, disclaimer: (entry && entry.disclaimer) || '', gradientLetter: '', cost: 0 };
