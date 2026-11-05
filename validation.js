@@ -109,6 +109,7 @@
     }
     const submitBtn = document.getElementById('submit-btn');
     if (submitBtn) submitBtn.disabled = !allValid;
+    return allValid;
   }
 
   document.addEventListener('input', function (e) {
@@ -138,30 +139,7 @@
     if (nextBtn) nextBtn.addEventListener('click', () => navigateView(1));
     if (submitBtn) {
       submitBtn.addEventListener('click', function () {
-        let allValid = true;
-        for (const area of QUESTION_AREAS) {
-          for (const q of area.questions) {
-            if (q.type === 'label') continue;
-            const wrapper = document.getElementById('question-wrapper-' + q.id);
-            if (wrapper && wrapper.classList.contains('hidden')) continue;
-            if (!wrapper) continue;
-            if (!q.required) continue;
-            const val = ANSWERS[q.id];
-            if (q.type === 'dropdown') {
-              if (!val || val === '') { allValid = false; break; }
-            } else if (q.type === 'boolean') {
-              if (val !== 'true' && val !== 'false') { allValid = false; break; }
-            } else if (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'recurring_cost_calculator' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist') {
-              if (val === undefined || val === '' || isNaN(Number(val))) { allValid = false; break; }
-            } else if (q.type === 'text') {
-              if (!val || !val.trim()) { allValid = false; break; }
-            } else {
-              if (!val) { allValid = false; break; }
-            }
-          }
-          if (!allValid) break;
-        }
-        if (!allValid) return;
+        if (!checkFormValidity()) return;
         document.querySelector('main').classList.add('hidden');
         document.getElementById('results-section').classList.remove('hidden');
         const scores = calculateScores(QUESTION_AREAS, ANSWERS, ANALYSIS_MODE);

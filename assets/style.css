@@ -108,10 +108,17 @@ main.hidden {
 	border-radius: 10px;
 	box-shadow: 0 16px 30px rgba(26, 58, 82, 0.12);
 	z-index: 30;
-	width: min(340px, calc(100vw - 32px));
 	padding: 16px;
 	width: 100%;
 	grid-column: 1;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+	outline: 3px solid rgba(45, 90, 123, 0.28);
+	outline-offset: 2px;
 }
 
 .section-guidance h3 {
@@ -187,17 +194,25 @@ main.hidden {
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-	padding: 5px 0;
-	border-top: 1px solid #d7e3ee;
-	color: #5a6f82;
-	font-size: 11px;
+	width: fit-content;
+	max-width: 100%;
+	margin: 12px 0 10px;
+	padding: 10px 16px;
+	border: 1px solid #c9d8e5;
+	border-left: 3px solid #7d9bb2;
+	border-radius: 6px;
+	background: #fbfcfd;
+	box-shadow: 0 1px 4px rgba(26, 58, 82, 0.05);
+	color: #1a3a52;
+	font-size: 13px;
 	grid-column: 1;
 }
 
 .current-section-score span {
-	font-size: 11px;
+	font-size: 13px;
 	font-weight: 600;
-	color: #5a6f82;
+	line-height: 1.25;
+	color: #405b70;
 }
 
 .question-label-row {
@@ -2022,7 +2037,7 @@ button[type="button"]:disabled {
 
 #results-graphic .pyramid-cell .score {
 	font-family: system-ui, -apple-system, sans-serif;
-	font-size: 8px;
+	font-size: 9px;
 	font-weight: 800;
 	fill: #ffffff;
 }
@@ -2045,6 +2060,18 @@ button[type="button"]:disabled {
 	font-size: 14px;
 	font-weight: 900;
 	fill: #ffffff;
+}
+
+.consumables-table-title {
+	font-weight: 800;
+	margin-bottom: 8px;
+}
+
+.phase-list-title {
+	font-size: 13px;
+	font-weight: 800;
+	color: #1a3a52;
+	margin: 8px 0 6px;
 }
 
 .btn-retake {

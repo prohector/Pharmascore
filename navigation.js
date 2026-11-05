@@ -370,19 +370,35 @@
   }
 
   function syncPracticalityFromPerformance() {
-    // Auto-fill prac1 (number of analytes) from perf section
+    // Auto-fill prac1 (number of analytes) from perf section (perf0)
     const prac1El = document.getElementById('prac1');
-    if (prac1El && !ANSWERS['prac1']) {
-      // Count the number of analytes from performance - could be inferred from validation questions
-      // For now, this is a placeholder that will trigger when user enters analytical performance
-      // The actual logic depends on which performance fields are filled
+    if (prac1El && (!ANSWERS['prac1'] || prac1El.value === '')) {
+      if (ANSWERS['perf0'] !== undefined && ANSWERS['perf0'] !== '') {
+        prac1El.value = ANSWERS['perf0'];
+        ANSWERS['prac1'] = ANSWERS['perf0'];
+      }
     }
 
-    // Auto-fill prac3 (analysis time) - can be calculated or pulled from gradient section
+    // Auto-fill prac3 (analysis time) from econ_rec1 run time or gradient profile
     const prac3El = document.getElementById('prac3');
-    if (prac3El && !ANSWERS['prac3']) {
-      // This could be auto-calculated from run time + gradient time if those are available
-      // Placeholder for future auto-fill logic from recurring cost calculator
+    if (prac3El && (!ANSWERS['prac3'] || prac3El.value === '')) {
+      const mode = ANSWERS['econ_rec1_gradient_mode'];
+      if (mode === 'gradient') {
+        let gradientRows = [];
+        try {
+          gradientRows = JSON.parse(ANSWERS['econ_rec1_gradient_rows'] || '[]');
+        } catch { gradientRows = []; }
+        if (gradientRows.length > 0) {
+          const maxTime = Math.max(...gradientRows.map(r => Number(r.time || 0)).filter(Number.isFinite));
+          if (maxTime > 0) {
+            prac3El.value = String(maxTime);
+            ANSWERS['prac3'] = String(maxTime);
+          }
+        }
+      } else if (ANSWERS['econ_rec1_run']) {
+        prac3El.value = String(ANSWERS['econ_rec1_run']);
+        ANSWERS['prac3'] = String(ANSWERS['econ_rec1_run']);
+      }
     }
   }
 

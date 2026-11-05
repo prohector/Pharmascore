@@ -5,7 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>PharmaScore Sustainability Assessment</title>
 	<!-- External Stylesheet -->
-	<link rel="stylesheet" href="assets/style.css?v=20261010c">
+	<link rel="stylesheet" href="assets/style.css?v=20261105d">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
@@ -79,7 +79,7 @@
 		<div class="progress-bar-container">
 			<div id="progress-bar" style="width: 16.6667%"></div>
 		</div>
-		<span id="progress-label">Section 1 of 6: Solvents &amp; Energy</span>
+		<span id="progress-label">Loading assessment...</span>
 	</div>
 
 	<!-- Tab Navigation -->
@@ -97,7 +97,7 @@
 			<p id="guidance-summary">Follow the prompts and enter values carefully.</p>
 			<ul id="guidance-steps"></ul>
 		</aside>
-		<h2 id="section-title" class="section-title"><span class="section-icon-slot" data-icon-key="solvents-energy" style="--icon-url: url('./assets/icons/solvents-energy.svg');" aria-hidden="true"></span><span class="section-title-text">Solvents &amp; Energy</span></h2>
+		<h2 id="section-title" class="section-title"><span class="section-icon-slot" data-icon-key="section" aria-hidden="true"></span><span class="section-title-text"></span></h2>
 		<p id="section-subtitle" class="section-subtitle">Please answer all required fields in this section.</p>
 		<div id="fixed-cost-subtabs" class="fixed-cost-subtabs hidden" aria-label="Fixed cost subsections"></div>
 		<div id="analytical-performance-subtabs" class="fixed-cost-subtabs hidden" aria-label="Analytical performance subsections"></div>
@@ -118,6 +118,7 @@
 	   <section id="results-section" class="hidden">
 		   <h3>Assessment Results</h3>
 		  <div id="results-graphic"></div>
+		<div id="results-price-summary" class="results-price-summary"></div>
 		  <div class="results-export-actions" aria-label="Download assessment graphic">
 			  <button id="download-results-svg" type="button" class="results-export-btn">Download SVG</button>
 			  <button id="download-results-png" type="button" class="results-export-btn">Download PNG</button>
@@ -126,7 +127,7 @@
 		</section>
 	<script src="state.js?v=20260915b"></script>
 	<script src="csv-loader.js?v=20260915b"></script>
-	<script src="render.js?v=20260915g"></script>
+	<script src="render.js?v=20261105a"></script>
 	<script src="validation.js?v=20260915c"></script>
 	<script src="navigation.js?v=20260915b"></script>
 <script src="questionnaire-json.js?v=20260915c"></script>

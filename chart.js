@@ -39,12 +39,37 @@ function renderResultsGraphic(scores) {
 
 window.renderResultsGraphic = renderResultsGraphic;
 
-function downloadResultsGraphic(format) {
+async function inlineSvgImages(svg) {
+  const clone = svg.cloneNode(true);
+  const images = clone.querySelectorAll('image');
+  for (const img of images) {
+    const href = img.getAttribute('href') || img.getAttribute('xlink:href');
+    if (href && !href.startsWith('data:')) {
+      try {
+        const res = await fetch(href);
+        const blob = await res.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = reject;
+          fr.readAsDataURL(blob);
+        });
+        img.setAttribute('href', dataUrl);
+      } catch (e) {
+        // Fall back to original href if inlining fails
+      }
+    }
+  }
+  return clone;
+}
+
+async function downloadResultsGraphic(format) {
   const svg = document.querySelector('#results-graphic .results-pyramid');
   if (!svg) return;
-  const serialized = new XMLSerializer().serializeToString(svg);
-  const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
+
   if (format === 'svg') {
+    const serialized = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
     const link = document.createElement('a');
     link.href = url;
@@ -53,7 +78,11 @@ function downloadResultsGraphic(format) {
     URL.revokeObjectURL(url);
     return;
   }
+
   if (format !== 'png') return;
+  const readySvg = await inlineSvgImages(svg);
+  const serialized = new XMLSerializer().serializeToString(readySvg);
+  const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
   const image = new Image();
   image.onload = () => {
     const canvas = document.createElement('canvas');

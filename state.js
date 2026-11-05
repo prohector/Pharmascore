@@ -202,6 +202,4 @@
       configurable: true
     }
   });
-
-  window.PharmascoreState = state;
 }());

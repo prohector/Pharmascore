@@ -770,7 +770,7 @@
     tableEl.innerHTML = `
       <thead>
         <tr>
-          <th>Time (min)</th>
+          <th>Duration (min)</th>
           ${assignments.map((assignment, idx) => `<th${idx === 0 ? ' class="gradient-auto-col"' : ''}>${assignment.entry.name}${idx === 0 ? ' (auto)' : ''}</th>`).join('')}
           <th>Actions</th>
         </tr>
@@ -1694,12 +1694,13 @@
             ${renderOtherLookupControls(`${q.id}_modifier`, 'g')}
 
             <div class="recurring-cost-mix-sections">
+              <h4 class="consumables-table-title">Table of total consumables</h4>
               <div class="recurring-cost-list-block">
-                <h4>Normal phase</h4>
+	                <h5 class="phase-list-title">Normal phase</h5>
                 <div id="${ids.normalPhaseListId}" class="recurring-cost-list"></div>
               </div>
               <div class="recurring-cost-list-block">
-                <h4>Reverse phase</h4>
+	                <h5 class="phase-list-title">Reverse phase</h5>
                 <div id="${ids.reversePhaseListId}" class="recurring-cost-list"></div>
               </div>
               <div class="recurring-cost-list-block">
@@ -1719,7 +1720,7 @@
                 <input id="${ids.gradientFlowId}" name="${ids.gradientFlowId}" type="number" min="0" step="any" class="form-input" placeholder="e.g. 1.2">
               </div>
               <table id="${ids.gradientTableId}" class="recurring-gradient-table"></table>
-              <button type="button" id="${ids.gradientTableWrapId}_add_row" class="recurring-add-btn">Add time row</button>
+              <button type="button" id="${ids.gradientTableWrapId}_add_row" class="recurring-add-btn">Add duration row</button>
               <button type="button" id="${ids.gradientTableWrapId}_calculate" class="recurring-add-btn">Calculate gradient cost</button>
             </div>
 
@@ -1907,15 +1908,18 @@
       if (q.type === 'column_selector') {
         const ids = getColumnSelectorIds(q.id);
         const typeEl = document.getElementById(ids.columnTypeId);
+        const nameEl = document.getElementById(ids.columnNameId);
         if (typeEl) {
           typeEl.addEventListener('change', () => {
             if (typeEl.value === '__other__') {
-              nameEl.value = '';
-              nameEl.disabled = true;
+              if (nameEl) {
+                nameEl.value = '';
+                nameEl.disabled = true;
+              }
               setOtherLookupVisibility(q.id, true);
               updateColumnSelectorTotal(q.id, ids);
             } else {
-              nameEl.disabled = false;
+              if (nameEl) nameEl.disabled = false;
               setOtherLookupVisibility(q.id, false);
               populateColumnNames(q.id, typeEl.value, ids);
             }
@@ -1923,7 +1927,6 @@
           const selectedType = typeEl.value;
           if (selectedType) populateColumnNames(q.id, selectedType, ids);
         }
-        const nameEl = document.getElementById(ids.columnNameId);
         if (nameEl) nameEl.addEventListener('change', () => {
           setOtherLookupVisibility(q.id, nameEl.value === '__other__');
           updateColumnSelectorTotal(q.id, ids);
@@ -2199,6 +2202,12 @@
         const resultsSection = document.getElementById('results-section');
         if (resultsSection) resultsSection.classList.add('hidden');
         for (const key in ANSWERS) delete ANSWERS[key];
+        if (window.RECURRING_MIXES) {
+          for (const key in window.RECURRING_MIXES) delete window.RECURRING_MIXES[key];
+        }
+        if (window.SOLVENT_LISTS) {
+          for (const key in window.SOLVENT_LISTS) delete window.SOLVENT_LISTS[key];
+        }
         window.AI_FILLED_ANSWERS = null;
         ANALYSIS_GATE_CHOSEN = false;
         currentTab = 0;
