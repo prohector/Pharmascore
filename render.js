@@ -312,9 +312,10 @@
     if (!area) return;
     if (textEl) textEl.textContent = area.title;
     if (iconSlot) {
-      const iconKey = iconKeyFromText(area.title);
-      iconSlot.dataset.iconKey = iconKey;
-      iconSlot.style.setProperty('--icon-url', `url('./assets/icons/${iconKey}.svg')`);
+      const iconAsset = iconAssetFromAreaTitle(area.title);
+      if (iconAsset) {
+        iconSlot.style.setProperty('--icon-url', `url('../assets/${iconAsset}')`);
+      }
     }
     updateSectionGuidance();
   }
@@ -348,7 +349,7 @@
     const percent = totalSteps > 0 ? (stepNumber / totalSteps) * 100 : 0;
     if (progressBar) progressBar.style.width = `${percent}%`;
     if (progressLabel) {
-      progressLabel.textContent = `Section ${stepNumber} of ${totalSteps}: ${currentArea ? currentArea.title : 'Section'}`;
+      progressLabel.textContent = `Category ${stepNumber} of ${totalSteps}: ${currentArea ? currentArea.title : 'Category'}`;
     }
   }
 
@@ -375,6 +376,17 @@
       .replace(/^-+|-+$/g, '') || 'section';
   }
 
+  function iconAssetFromAreaTitle(title) {
+    const icons = {
+      'Green assessment': 'noun_leaf_8158036_@700.png',
+      'Equipment Fixed Costs': 'noun_lab_3020074_@700.png',
+      'Analytical Consumables': 'noun_Money_8127580_@700.png',
+      Practicality: 'noun_service_5454640_@700.png',
+      'Analytical Performance': 'noun_performance_831861_@700.png'
+    };
+    return icons[title] || '';
+  }
+
   function renderTabs() {
     const tabNav = document.getElementById('tab-nav');
     if (!tabNav) return;
@@ -385,6 +397,10 @@
       btn.className = 'tab-btn' + (idx === currentTab ? ' tab-btn-active' : '');
       const iconKey = iconKeyFromText(area.title);
       btn.innerHTML = `<span class="tab-icon-slot" data-icon-key="${iconKey}" aria-hidden="true"></span><span class="tab-label">${area.title}</span>`;
+      const iconAsset = iconAssetFromAreaTitle(area.title);
+      if (iconAsset) {
+        btn.querySelector('.tab-icon-slot').style.setProperty('--icon-url', `url('../assets/${iconAsset}')`);
+      }
       btn.onclick = () => { goToTab(idx); };
       tabNav.appendChild(btn);
     });
@@ -770,7 +786,7 @@
     tableEl.innerHTML = `
       <thead>
         <tr>
-          <th>Duration (min)</th>
+          <th>Time (min)</th>
           ${assignments.map((assignment, idx) => `<th${idx === 0 ? ' class="gradient-auto-col"' : ''}>${assignment.entry.name}${idx === 0 ? ' (auto)' : ''}</th>`).join('')}
           <th>Actions</th>
         </tr>
@@ -1721,7 +1737,7 @@
               </div>
               <table id="${ids.gradientTableId}" class="recurring-gradient-table"></table>
               <button type="button" id="${ids.gradientTableWrapId}_add_row" class="recurring-add-btn">Add duration row</button>
-              <button type="button" id="${ids.gradientTableWrapId}_calculate" class="recurring-add-btn">Calculate gradient cost</button>
+              <button type="button" id="${ids.gradientTableWrapId}_calculate" class="recurring-gradient-calculate-btn">Calculate gradient cost</button>
             </div>
 
             <div class="chem-lookup-total-section">

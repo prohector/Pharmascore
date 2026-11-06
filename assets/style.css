@@ -176,7 +176,7 @@ textarea:focus-visible {
 	width: 1rem;
 	height: 1rem;
 	background-color: transparent;
-	background-image: none;
+	background-image: var(--icon-url, none);
 	background-repeat: no-repeat;
 	background-position: center;
 	background-size: contain;
@@ -978,7 +978,11 @@ select.form-input {
 	appearance: none;
 	-webkit-appearance: none;
 	-moz-appearance: none;
+	min-height: 44px;
 	padding-right: 42px;
+	border-width: 1px;
+	border-radius: 8px;
+	line-height: 1.35;
 	background-image:
 		linear-gradient(45deg, transparent 50%, #1a3a52 50%),
 		linear-gradient(135deg, #1a3a52 50%, transparent 50%),
@@ -992,6 +996,12 @@ select.form-input {
 	cursor: pointer;
 	box-shadow: 0 2px 8px rgba(26, 58, 82, 0.05);
 	border-color: #c9d5e2;
+}
+
+select.form-input option {
+	background: #ffffff;
+	color: #2c3e50;
+	font-size: 14px;
 }
 
 select.form-input:hover {
@@ -1581,6 +1591,29 @@ select.form-input.ai-filled:disabled,
 	border-radius: 10px;
 }
 
+.recurring-cost-mix-sections {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0 20px;
+	padding: 12px 14px;
+	border: 1px solid #dfeaf3;
+	border-radius: 8px;
+	background: #ffffff;
+}
+
+.recurring-cost-mix-sections .consumables-table-title {
+	grid-column: 1 / -1;
+	margin: 0 0 4px;
+}
+
+.recurring-cost-mix-sections .recurring-cost-list-block {
+	padding: 8px 0;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
 .recurring-cost-list-block h4 {
 	font-size: 12px;
 	font-weight: 700;
@@ -1603,13 +1636,62 @@ select.form-input.ai-filled:disabled,
 }
 
 .recurring-remove-btn {
-	padding: 6px 10px;
+	padding: 2px 0;
 	font-size: 11px;
-	border-radius: 6px;
-	background: #fff1f2;
+	border-radius: 0;
+	background: transparent;
 	color: #be123c;
-	border: 1px solid #fecdd3;
+	border: 0;
 	box-shadow: none;
+	text-transform: none;
+	letter-spacing: 0;
+}
+
+.recurring-remove-btn:hover {
+	background: transparent;
+	color: #9f1239;
+	box-shadow: none;
+	text-decoration: underline;
+}
+
+.recurring-add-btn {
+	padding: 8px 12px;
+	border: 1px solid #c9d5e2;
+	border-radius: 7px;
+	background: #ffffff;
+	color: #35526a;
+	font-size: 12px;
+	text-transform: uppercase;
+	box-shadow: 0 1px 3px rgba(26, 58, 82, 0.06);
+}
+
+.recurring-add-btn:hover {
+	background: #f3f7fb;
+	border-color: #8eacc2;
+	box-shadow: 0 2px 6px rgba(26, 58, 82, 0.1);
+}
+
+.recurring-gradient-calculate-btn {
+	padding: 10px 16px;
+	border: 1px solid #2d5a7b;
+	border-radius: 8px;
+	background: #2d5a7b;
+	color: #ffffff;
+	font-size: 13px;
+	font-weight: 700;
+	text-transform: uppercase;
+	box-shadow: 0 3px 8px rgba(45, 90, 123, 0.18);
+}
+
+.recurring-gradient-calculate-btn:hover {
+	background: #21455f;
+	border-color: #21455f;
+	box-shadow: 0 5px 12px rgba(45, 90, 123, 0.22);
+}
+
+.recurring-cost-calc .question-score-output,
+.equipment-checklist-wrap .chem-lookup-total-section {
+	display: none;
 }
 
 .recurring-cost-empty {
@@ -1949,6 +2031,14 @@ button[type="button"]:disabled {
 }
 
 @media (max-width: 768px) {
+	.recurring-cost-mix-sections {
+		grid-template-columns: 1fr;
+	}
+
+	.recurring-cost-mix-sections .consumables-table-title {
+		grid-column: 1;
+	}
+
 	.checklist-other-row {
 		grid-template-columns: 1fr auto;
 	}
@@ -2301,4 +2391,85 @@ button[type="button"]:disabled {
 	#progress-label {
 		font-size: 11px;
 	}
+}
+
+
+/* ===========================
+   Cloudflare Turnstile Modal
+   =========================== */
+.turnstile-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(15, 23, 42, 0.65);
+	backdrop-filter: blur(4px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 9999;
+	padding: 20px;
+}
+
+.turnstile-modal.hidden {
+	display: none !important;
+}
+
+.turnstile-modal-box {
+	background: #ffffff;
+	border-radius: 12px;
+	padding: 28px 24px;
+	max-width: 380px;
+	width: 100%;
+	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+	text-align: center;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	border-top: 4px solid #2d5a7b;
+	animation: turnstileFadeIn 0.2s ease-out;
+}
+
+@keyframes turnstileFadeIn {
+	from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.turnstile-modal-box h3 {
+	font-size: 18px;
+	color: #1a3a52;
+	font-weight: 700;
+	margin: 0;
+}
+
+.turnstile-modal-desc {
+	font-size: 13px;
+	color: #64748b;
+	line-height: 1.4;
+	margin: 0;
+}
+
+.turnstile-error {
+	font-size: 12px;
+	color: #ef4444;
+	font-weight: 600;
+}
+
+.turnstile-cancel-btn {
+	background: #f1f5f9;
+	color: #475569;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	padding: 8px 18px;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+
+.turnstile-cancel-btn:hover {
+	background: #e2e8f0;
+	color: #1e293b;
 }

@@ -3,10 +3,91 @@ const MAX_SESSION_QUERIES = 20;
 const MAX_MINUTE_QUERIES = 5;
 const MINUTE_MS = 60 * 1000;
 
-// Shared secret used to authenticate requests to the Worker.
-// IMPORTANT: set this to the SAME value you used for:
-//   wrangler secret put APP_SHARED_SECRET
-const APP_SHARED_SECRET = 'marko';
+// Cloudflare Turnstile Site Key.
+// Can be customized via window.TURNSTILE_SITE_KEY or by replacing the fallback below.
+// By default, uses Cloudflare's official testing site key ('1x00000000000000000000AA') which always passes.
+export const TURNSTILE_SITE_KEY = window.TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
+
+let turnstileWidgetId = null;
+let turnstilePendingPromise = null;
+
+export function getTurnstileToken() {
+  if (turnstilePendingPromise) return turnstilePendingPromise;
+
+  turnstilePendingPromise = new Promise((resolve) => {
+    // If turnstile script is not loaded or blocked, resolve gracefully with null
+    if (typeof window.turnstile === 'undefined') {
+      console.warn('[PharmaScore] Cloudflare Turnstile script is not loaded.');
+      turnstilePendingPromise = null;
+      resolve(null);
+      return;
+    }
+
+    const modal = document.getElementById('turnstile-modal');
+    const container = document.getElementById('turnstile-widget');
+    const errorEl = document.getElementById('turnstile-error');
+    const cancelBtn = document.getElementById('turnstile-cancel-btn');
+
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.add('hidden');
+    }
+
+    function cleanup() {
+      if (modal) modal.classList.add('hidden');
+      turnstilePendingPromise = null;
+    }
+
+    if (modal) modal.classList.remove('hidden');
+
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        cleanup();
+        resolve(null);
+      };
+    }
+
+    try {
+      if (turnstileWidgetId !== null) {
+        window.turnstile.reset(turnstileWidgetId);
+      } else if (container) {
+        turnstileWidgetId = window.turnstile.render(container, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: 'light',
+          callback: (token) => {
+            cleanup();
+            resolve(token);
+          },
+          'error-callback': () => {
+            if (errorEl) {
+              errorEl.textContent = 'Security check encountered an error. Please retry.';
+              errorEl.classList.remove('hidden');
+            }
+          },
+          'expired-callback': () => {
+            if (turnstileWidgetId !== null) {
+              window.turnstile.reset(turnstileWidgetId);
+            }
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('[PharmaScore] Turnstile render error:', err);
+      cleanup();
+      resolve(null);
+    }
+  });
+
+  return turnstilePendingPromise;
+}
+
+export function resetTurnstile() {
+  if (typeof window.turnstile !== 'undefined' && turnstileWidgetId !== null) {
+    try {
+      window.turnstile.reset(turnstileWidgetId);
+    } catch {}
+  }
+}
 
 function checkAndRecordQuery() {
   const now = Date.now();
@@ -41,11 +122,16 @@ export async function lookupChemicalPrice(name, country = 'US', unit = 'g', ques
   const limit = checkAndRecordQuery();
   if (!limit.allowed) return { success: false, error: limit.error, rateLimited: true };
 
+  const turnstileToken = await getTurnstileToken();
+  if (!turnstileToken) {
+    return { success: false, error: 'Security check was not completed. Please try again.' };
+  }
+
   try {
     const response = await fetch(WORKER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-secret': APP_SHARED_SECRET },
-      body: JSON.stringify({ name: chemicalName, country, unit: priceUnit, question })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: chemicalName, country, unit: priceUnit, question, turnstileToken })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.success) {
@@ -54,6 +140,8 @@ export async function lookupChemicalPrice(name, country = 'US', unit = 'g', ques
     return data;
   } catch {
     return { success: false, error: 'Price lookup is unavailable. Check your connection and try again.' };
+  } finally {
+    resetTurnstile();
   }
 }
 
@@ -62,16 +150,24 @@ export async function requestQuestionnaireFill(pdfText, questionnaire) {
   if (!text) return { success: false, error: 'No selectable PDF text was found.' };
   const limit = checkAndRecordQuery();
   if (!limit.allowed) return { success: false, error: limit.error, rateLimited: true };
+
+  const turnstileToken = await getTurnstileToken();
+  if (!turnstileToken) {
+    return { success: false, error: 'Security check was not completed. Please try again.' };
+  }
+
   try {
     const response = await fetch(WORKER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-secret': APP_SHARED_SECRET },
-      body: JSON.stringify({ action: 'fill_questionnaire', pdfText: text.slice(0, 120000), questionnaire })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'fill_questionnaire', pdfText: text.slice(0, 120000), questionnaire, turnstileToken })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.success) return { success: false, error: data.error || `Questionnaire fill failed (${response.status}).` };
     return data;
   } catch {
     return { success: false, error: 'The PDF questionnaire service is unavailable. Please try again.' };
+  } finally {
+    resetTurnstile();
   }
 }

@@ -1,4 +1,5 @@
-//This is a cloudflare worker
+// Cloudflare Worker for PharmaScore
+// Integrates with Mistral AI, Turnstile Verification, Origin allowlist, and Rate Limiting.
 
 const MISTRAL_MODEL = 'mistral-small-latest';
 const REQUEST_TIMEOUT_MS = 15000;
@@ -8,40 +9,78 @@ const MAX_TEXT_LENGTH = 120000;
 const MAX_SCHEMA_JSON_LENGTH = 60000;
 const MAX_PROMPT_LENGTH = 160000;
 
-// Local fallback rate counter — used only if the Rate Limiting binding is unavailable.
+// Default Allowed Origins for CORS and Origin-header verification.
+// Can be customized via env.ALLOWED_ORIGINS (comma-separated list).
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://prohector.github.io',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080'
+];
+
+// Local fallback rate counter (per IP) — used if Rate Limiting binding is not configured.
 const LOCAL_RATE_LIMIT = 5;
 const LOCAL_RATE_WINDOW_MS = 60 * 1000;
 const localQueryHistory = new Map();
 
+// Daily Cap defaults
+const DEFAULT_DAILY_CAP = 500;
+let localDailyDate = '';
+let localDailyCount = 0;
+
 export default {
   async fetch(request, env, ctx) {
+    const matchedOrigin = matchOrigin(request, env);
+
+    // 1. Preflight CORS check: only allow configured origins
     if (request.method === 'OPTIONS') {
-      return corsResponse(new Response(null, { status: 204 }));
+      if (!matchedOrigin) {
+        return new Response('Forbidden: Origin not allowed', { status: 403 });
+      }
+      return corsResponse(new Response(null, { status: 204 }), matchedOrigin);
     }
 
+    // 2. Reject requests from non-allowed origins
+    if (!matchedOrigin) {
+      return jsonResponse({ success: false, error: 'Forbidden: Origin not allowed' }, 403);
+    }
+
+    // 3. Only POST requests are allowed
     if (request.method !== 'POST') {
-      return corsResponse(jsonResponse({ success: false, error: 'Method not allowed' }, 405));
+      return corsResponse(jsonResponse({ success: false, error: 'Method not allowed' }, 405), matchedOrigin);
     }
 
     let body;
     try {
       body = await request.json();
     } catch {
-      return corsResponse(jsonResponse({ success: false, error: 'Invalid request body' }, 400));
-    }
-
-    // Shared-secret gate: applied to both request paths before any Mistral call.
-    const appSecret = request.headers.get('x-app-secret');
-    if (!env.APP_SHARED_SECRET || appSecret !== env.APP_SHARED_SECRET) {
-      return corsResponse(jsonResponse({ success: false, error: 'Unauthorized: missing or invalid app secret.' }, 401));
+      return corsResponse(jsonResponse({ success: false, error: 'Invalid request body' }, 400), matchedOrigin);
     }
 
     const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
-    const rateLimit = await checkRateLimit(env, clientIp);
-    if (!rateLimit.allowed) {
-      return corsResponse(jsonResponse({ success: false, error: rateLimit.error, rateLimited: true }, 429));
+
+    // 4. Cloudflare Turnstile Verification: verify token server-side before proceeding
+    const turnstileCheck = await verifyTurnstileToken(body.turnstileToken, clientIp, env);
+    if (!turnstileCheck.success) {
+      return corsResponse(jsonResponse({ success: false, error: turnstileCheck.error }, 403), matchedOrigin);
     }
 
+    // 5. Rate limit per IP (5 requests per minute)
+    const rateLimit = await checkRateLimit(env, clientIp);
+    if (!rateLimit.allowed) {
+      return corsResponse(jsonResponse({ success: false, error: rateLimit.error, rateLimited: true }, 429), matchedOrigin);
+    }
+
+    // 6. Daily cap on total calls
+    const dailyLimit = await checkDailyCap(env);
+    if (!dailyLimit.allowed) {
+      return corsResponse(jsonResponse({ success: false, error: dailyLimit.error, rateLimited: true }, 429), matchedOrigin);
+    }
+
+    // 7. Action: Fill questionnaire from extracted PDF text
     if (body.action === 'fill_questionnaire') {
       console.log('[PharmaScore] Worker received fill_questionnaire:', {
         textLength: typeof body.pdfText === 'string' ? body.pdfText.length : 0,
@@ -49,37 +88,103 @@ export default {
       });
       try {
         const result = await fillQuestionnaireFromPdf(body.pdfText, body.questionnaire, env);
-        return corsResponse(jsonResponse(result, 200));
+        return corsResponse(jsonResponse(result, 200), matchedOrigin);
       } catch (error) {
         console.error('[PharmaScore] Questionnaire Mistral request failed:', error instanceof Error ? error.message : String(error));
-        return corsResponse(jsonResponse({ success: false, error: 'The PDF questionnaire could not be interpreted right now.' }, 502));
+        return corsResponse(jsonResponse({ success: false, error: 'The PDF questionnaire could not be interpreted right now.' }, 502), matchedOrigin);
       }
     }
 
+    // 8. Action: Chemical / Consumable Price Estimate
     const name = String(body.name || '').trim();
     const country = String(body.country || 'US').trim();
     const unit = ['g', 'ml', 'item'].includes(body.unit) ? body.unit : 'g';
     const question = String(body.question || '').trim().slice(0, 500);
 
     if (!name || name.length > 200) {
-      return corsResponse(jsonResponse({ success: false, error: 'Missing or invalid chemical name' }, 400));
+      return corsResponse(jsonResponse({ success: false, error: 'Missing or invalid chemical name' }, 400), matchedOrigin);
     }
 
     try {
       const estimate = await getPriceEstimate(name, country, unit, question, env);
-      return corsResponse(jsonResponse(estimate, 200));
+      return corsResponse(jsonResponse(estimate, 200), matchedOrigin);
     } catch (err) {
       console.error('[PharmaScore] Price Mistral request failed:', err instanceof Error ? err.message : String(err));
       return corsResponse(jsonResponse({
         success: false,
         error: 'Price estimate unavailable right now. Please try again or enter a price manually.'
-      }, 502));
+      }, 502), matchedOrigin);
     }
   }
 };
 
-// Uses the Cloudflare Rate Limiting binding, which is reliable across Worker isolates.
-// Falls back to a per-isolate in-memory counter only if the binding is not configured.
+// --- Origin Matching & CORS Helper ---
+function getAllowedOrigins(env) {
+  if (env && env.ALLOWED_ORIGINS) {
+    return env.ALLOWED_ORIGINS.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  }
+  return DEFAULT_ALLOWED_ORIGINS.map(s => s.toLowerCase());
+}
+
+function matchOrigin(request, env) {
+  const origin = request.headers.get('Origin');
+  if (!origin) return null;
+  const allowed = getAllowedOrigins(env);
+  return allowed.includes(origin.toLowerCase()) ? origin : null;
+}
+
+function corsResponse(response, allowedOrigin) {
+  const headers = new Headers(response.headers);
+  if (allowedOrigin) {
+    headers.set('Access-Control-Allow-Origin', allowedOrigin);
+    headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type');
+    headers.set('Vary', 'Origin');
+  }
+  return new Response(response.body, { status: response.status, headers });
+}
+
+function jsonResponse(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+// --- Cloudflare Turnstile Verification ---
+async function verifyTurnstileToken(token, clientIp, env) {
+  // Use TURNSTILE_SECRET_KEY secret, with Cloudflare's always-pass testing secret as fallback
+  const secretKey = env.TURNSTILE_SECRET_KEY || '1x0000000000000000000000000000000AA';
+  if (!token) {
+    return { success: false, error: 'Security token is missing. Please complete the security check.' };
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('secret', secretKey);
+    formData.append('response', token);
+    if (clientIp && clientIp !== 'unknown') {
+      formData.append('remoteip', clientIp);
+    }
+
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (!data.success) {
+      console.warn('[PharmaScore] Turnstile verification failed:', data['error-codes']);
+      return { success: false, error: 'Security verification failed. Please try again.' };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('[PharmaScore] Turnstile siteverify request error:', err);
+    return { success: false, error: 'Security verification service unavailable.' };
+  }
+}
+
+// --- Rate Limiting per IP ---
 async function checkRateLimit(env, clientIp) {
   const rateLimiter = env && env.RATE_LIMITER;
   if (rateLimiter && typeof rateLimiter.limit === 'function') {
@@ -90,7 +195,6 @@ async function checkRateLimit(env, clientIp) {
       }
       return { allowed: true };
     } catch {
-      // Binding errored (e.g. namespace not provisioned) — degrade gracefully.
       return checkLocalRateLimit(clientIp);
     }
   }
@@ -108,6 +212,44 @@ function checkLocalRateLimit(clientIp) {
   return { allowed: true };
 }
 
+// --- Daily Cap on Total Calls ---
+async function checkDailyCap(env) {
+  const dailyCap = Number(env.DAILY_CAP || env.DAILY_CALL_LIMIT || DEFAULT_DAILY_CAP);
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `daily_calls:${today}`;
+
+  if (env && env.DAILY_STATS && typeof env.DAILY_STATS.get === 'function') {
+    try {
+      const current = Number(await env.DAILY_STATS.get(key) || 0);
+      if (current >= dailyCap) {
+        return {
+          allowed: false,
+          error: `The daily limit of ${dailyCap} AI requests has been reached. Please try again tomorrow or enter values manually.`
+        };
+      }
+      await env.DAILY_STATS.put(key, String(current + 1), { expirationTtl: 172800 });
+      return { allowed: true };
+    } catch (err) {
+      console.warn('[PharmaScore] Daily stats KV error, falling back to local memory:', err);
+    }
+  }
+
+  // In-memory fallback per worker isolate
+  if (localDailyDate !== today) {
+    localDailyDate = today;
+    localDailyCount = 0;
+  }
+  if (localDailyCount >= dailyCap) {
+    return {
+      allowed: false,
+      error: `The daily limit of ${dailyCap} AI requests has been reached. Please try again tomorrow or enter values manually.`
+    };
+  }
+  localDailyCount += 1;
+  return { allowed: true };
+}
+
+// --- Mistral AI Prompts & Handlers ---
 async function fillQuestionnaireFromPdf(pdfText, questionnaire, env) {
   const text = String(pdfText || '').trim();
   if (!text || text.length > MAX_TEXT_LENGTH || !questionnaire || typeof questionnaire !== 'object') {
@@ -140,6 +282,7 @@ async function fillQuestionnaireFromPdf(pdfText, questionnaire, env) {
     `QUESTIONNAIRE SCHEMA:\n${schemaJson}`,
     `EXTRACTED PDF TEXT:\n${text}`
   ].join('\n\n');
+
   const response = await fetchMistralJson(prompt, env);
   if (!response || typeof response.answers !== 'object' || Array.isArray(response.answers)) {
     return { success: false, error: 'The AI did not return a usable questionnaire answer set.' };
@@ -180,8 +323,6 @@ async function fetchMistralJson(prompt, env) {
 
 async function getPriceEstimate(name, country, unit, question, env) {
   const prompt = buildPrompt(name, country, unit, question);
-  // Reuse the shared Mistral call/parse helper; throws on failure so the fetch
-  // handler returns the same 502 response as before.
   const parsed = await fetchMistralJson(prompt, env);
   const price = Number(parsed.price);
   if (!Number.isFinite(price) || price <= 0) {
@@ -213,19 +354,4 @@ function buildPrompt(name, country, unit, question) {
     `Respond ONLY with a JSON object, no other text, in exactly this shape:`,
     `{"price": <number or null>, "confidence": "low"|"medium"|"high"}`
   ].join(' ');
-}
-
-function jsonResponse(obj, status) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
-}
-
-function corsResponse(response) {
-  const headers = new Headers(response.headers);
-  headers.set('Access-Control-Allow-Origin', '*');
-  headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, x-app-secret');
-  return new Response(response.body, { status: response.status, headers });
 }

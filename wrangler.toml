@@ -2,8 +2,7 @@ name = "misty-waterfall-054f"
 main = "worker.js"
 compatibility_date = "2026-08-19"
 
-# Cloudflare Rate Limiting binding (reliable across Worker isolates).
-# Enforces 5 calls per 60s per key (the client IP) before any Mistral call.
+# Rate Limiting binding per IP (5 calls / 60s)
 [[ratelimits]]
 name = "RATE_LIMITER"
 namespace_id = "429001"
@@ -11,3 +10,18 @@ namespace_id = "429001"
   [ratelimits.simple]
   limit = 5
   period = 60
+
+# Optional KV namespace binding for persistent daily usage tracking across isolates
+# To enable, create a KV namespace via: npx wrangler kv namespace create DAILY_STATS
+# [[kv_namespaces]]
+# binding = "DAILY_STATS"
+# id = "<your-kv-namespace-id>"
+
+# Environment variables
+[vars]
+ALLOWED_ORIGINS = "https://prohector.github.io,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080"
+DAILY_CAP = 500
+
+# Secrets to set via CLI:
+#   npx wrangler secret put MistralAPI
+#   npx wrangler secret put TURNSTILE_SECRET_KEY
