@@ -2,7 +2,7 @@
 // Integrates with Google Gemini API, Turnstile Verification, Origin allowlist, and Rate Limiting.
 
 const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
-// const DEFAULT_GEMINI_KEY = 'YOUR_GEMINI_API_KEY'; // Replace with your Gemini API key in the Cloudflare environment (do NOT commit the real key)
+
 const REQUEST_TIMEOUT_MS = 55000;
 
 // Input-size guards for the fill_questionnaire prompt.
