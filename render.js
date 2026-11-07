@@ -2180,6 +2180,20 @@
     if (routineBtn) routineBtn.addEventListener('click', () => chooseAnalysisMode('routine'));
     if (advancedBtn) advancedBtn.addEventListener('click', () => chooseAnalysisMode('advanced'));
 
+    function showPdfNotification(message, type = 'loading') {
+      const el = document.getElementById('pdf-autofill-notification');
+      if (!el) return;
+      el.className = `pdf-autofill-notification ${type}`;
+      el.innerHTML = `<span>${message}</span><button type="button" class="pdf-notification-dismiss" aria-label="Dismiss">&times;</button>`;
+      const dismissBtn = el.querySelector('.pdf-notification-dismiss');
+      if (dismissBtn) {
+        dismissBtn.onclick = () => {
+          el.className = 'pdf-autofill-notification hidden';
+          el.innerHTML = '';
+        };
+      }
+    }
+
     const pdfInput = document.getElementById('analysis-pdf-file');
     if (pdfInput) {
       pdfInput.addEventListener('change', async () => {
@@ -2190,8 +2204,9 @@
         ANALYSIS_MODE = mode;
         ANALYSIS_GATE_CHOSEN = true;
         if (status) status.textContent = 'Extracting selectable PDF text...';
+        showQuestionnaireIfReady();
+        showPdfNotification('Extracting PDF text and analyzing questionnaire with AI...', 'loading');
         try {
-          showQuestionnaireIfReady();
           const questionnaire = window.buildQuestionnaireJson();
           const result = await window.fillQuestionnaireFromPdf(file, questionnaire);
           if (!result.success) throw new Error(result.error || 'The PDF could not be processed.');
@@ -2200,8 +2215,11 @@
             window.markAiFilledAnswers((result.questionnaire && result.questionnaire.answers) || result.answers || {});
           }
           if (status) status.textContent = 'PDF values imported. Review the answers before continuing.';
+          showPdfNotification('PDF values imported successfully! Fields filled by AI are highlighted. Review the answers before continuing.', 'success');
         } catch (error) {
-          if (status) status.textContent = error.message || 'PDF auto-fill failed. You can complete the questionnaire manually.';
+          const msg = error.message || 'PDF auto-fill failed. You can complete the questionnaire manually.';
+          if (status) status.textContent = msg;
+          showPdfNotification(`PDF auto-fill notice: ${msg}`, 'error');
           console.warn('[PharmaScore] PDF auto-fill failed:', error);
         } finally {
           pdfInput.value = '';

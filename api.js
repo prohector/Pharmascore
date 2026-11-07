@@ -102,10 +102,10 @@ function checkAndRecordQuery() {
 
   const sessionTotal = Number(sessionStorage.getItem('pharmascore_price_query_total') || 0);
   if (sessionTotal >= MAX_SESSION_QUERIES) {
-    return { allowed: false, error: 'The 20 price-query limit for this session has been reached.' };
+    return { allowed: false, error: 'The 20 AI query limit for this session has been reached.' };
   }
   if (timestamps.length >= MAX_MINUTE_QUERIES) {
-    return { allowed: false, error: 'Please wait before making more price queries. The limit is 5 per minute.' };
+    return { allowed: false, error: 'Please wait before making more AI requests. The limit is 5 per minute.' };
   }
 
   timestamps.push(now);
@@ -165,8 +165,9 @@ export async function requestQuestionnaireFill(pdfText, questionnaire) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.success) return { success: false, error: data.error || `Questionnaire fill failed (${response.status}).` };
     return data;
-  } catch {
-    return { success: false, error: 'The PDF questionnaire service is unavailable. Please try again.' };
+  } catch (err) {
+    console.error('[PharmaScore] PDF questionnaire service error:', err);
+    return { success: false, error: 'The PDF questionnaire service is unavailable (CORS or network error). Please verify your connection or Worker origin settings.' };
   } finally {
     resetTurnstile();
   }

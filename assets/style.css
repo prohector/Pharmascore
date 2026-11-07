@@ -662,6 +662,46 @@ textarea:focus-visible {
 	font-size: 12px;
 }
 
+.pdf-autofill-notification {
+	grid-column: 1 / -1;
+	margin-bottom: 16px;
+	padding: 12px 16px;
+	border-radius: 8px;
+	font-size: 13px;
+	line-height: 1.4;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+.pdf-autofill-notification.loading {
+	background-color: #e8f4fd;
+	border: 1px solid #b6daf2;
+	color: #1a4f78;
+}
+.pdf-autofill-notification.success {
+	background-color: #eafaf1;
+	border: 1px solid #a3e4d7;
+	color: #196f3d;
+}
+.pdf-autofill-notification.error {
+	background-color: #fdf2e9;
+	border: 1px solid #f5cba7;
+	color: #935116;
+}
+.pdf-autofill-notification.hidden {
+	display: none;
+}
+.pdf-notification-dismiss {
+	background: transparent;
+	border: none;
+	font-size: 16px;
+	cursor: pointer;
+	color: inherit;
+	padding: 0 4px;
+	line-height: 1;
+}
+
 .analysis-choice-btn {
 	min-width: 180px;
 	padding: 14px 18px;

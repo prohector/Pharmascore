@@ -4,26 +4,19 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>PharmaScore Sustainability Assessment</title>
-	<!-- External Stylesheet -->
-	<link rel="stylesheet" href="assets/style.css?v=20261106c">
+
+	<!-- Content Security Policy -->
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://misty-waterfall-054f.up1107677.workers.dev https://challenges.cloudflare.com https://cdnjs.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob: https://cdnjs.cloudflare.com;">
+
+	<!-- External Stylesheet & KaTeX -->
+	<link rel="stylesheet" href="assets/style.css">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
+
 	<!-- Cloudflare Turnstile API -->
 	<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
-	<script type="module">
-		import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
-		pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
-		window.pdfjsLib = pdfjsLib;
-	</script>
-
-	<script type="module">
-		import { lookupChemicalPrice, requestQuestionnaireFill, getTurnstileToken, resetTurnstile } from './api.js';
-		window.lookupChemicalPrice = lookupChemicalPrice;
-		window.requestQuestionnaireFill = requestQuestionnaireFill;
-		window.getTurnstileToken = getTurnstileToken;
-		window.resetTurnstile = resetTurnstile;
-	</script>
+	<script type="module" src="init.js"></script>
 </head>
 <body>
 	<!--
@@ -94,6 +87,7 @@
 
 	<!-- Main Form Section -->
 	<main class="hidden">
+		<div id="pdf-autofill-notification" class="pdf-autofill-notification hidden" aria-live="polite"></div>
 		<button id="section-guidance-toggle" class="section-guidance-toggle" type="button" aria-expanded="false" aria-controls="section-guidance">Help</button>
 		<aside id="section-guidance" class="section-guidance hidden" aria-live="polite">
 			<h3 id="guidance-title">How To Complete This Section</h3>
