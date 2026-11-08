@@ -6,14 +6,12 @@ function renderResultsGraphic(scores) {
   if (!container) return;
   const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const scoreFor = key => Math.round(Number(scores[key]) || 0);
-  const average = Math.round(Object.values(scores).reduce((sum, value) => sum + (Number(value) || 0), 0) / (Object.keys(scores).length || 1));
   const colorFor = score => score >= 75 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444';
   const categories = [
     { key: 'Green assessment', title: 'NFPA', icon: 'noun_leaf_8158036_@700.png', x: 21.9, y: 27 },
     { key: 'Equipment Fixed Costs', title: 'Equip', icon: 'noun_lab_3020074_@700.png', x: 60, y: 27 },
     { key: 'Analytical Consumables', title: 'Consum', icon: 'noun_Money_8127580_@700.png', x: 98.1, y: 27 },
-    { key: 'Practicality', title: 'Practic', icon: 'noun_service_5454640_@700.png', x: 40.9, y: 60 },
-    { key: 'Analytical Performance', title: 'Perform', icon: 'noun_performance_831861_@700.png', x: 79.1, y: 60 }
+    { key: 'Practicality', title: 'Practic', icon: 'noun_service_5454640_@700.png', x: 40.9, y: 60 }
   ];
   const hex = '<polygon points="19.1,11.0 0.0,22.0 -19.1,11.0 -19.1,-11.0 -0.0,-22.0 19.1,-11.0" class="hex-shape" />';
   const node = category => {
@@ -29,11 +27,6 @@ function renderResultsGraphic(scores) {
     <defs><filter id="pyramid-shadow" x="-25%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000000" flood-opacity="0.15" /></filter></defs>
     <polygon points="60,2 108,20 115,70 60,118 5,70 12,20" fill="white" stroke="white" stroke-width="6" stroke-linejoin="round" filter="url(#pyramid-shadow)" />
     ${categories.map(node).join('')}
-    <g class="pyramid-cell pyramid-overall" data-category="Overall score" tabindex="0" role="img" aria-label="Overall score ${average}" transform="translate(60, 93)">
-      ${hex.replace('class="hex-shape"', 'class="hex-shape" fill="#1e293b"')}
-      <text class="title overall-title" x="0" y="-2" text-anchor="middle">SCORE</text>
-      <text class="overall-score" x="0" y="10" text-anchor="middle">${average}</text>
-    </g>
   </svg>`;
 }
 

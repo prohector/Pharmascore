@@ -69,7 +69,14 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 			let score = null;
 			let ruleDetail = null;
 			const weight = getQuestionWeight(q);
-			const val = ANSWERS[q.id];
+			const rawVal = ANSWERS[q.id];
+	let val = rawVal;
+	if (q.id === 'perf5' || q.id === 'perf13' || q.id === 'perf14') {
+		const num = Number(rawVal);
+		if (Number.isFinite(num)) {
+			val = q.id === 'perf14' ? Math.abs(num) : Math.abs(100 - num);
+		}
+	}
 			const audit = {
 				section: area.title,
 				id: q.id,
@@ -99,7 +106,27 @@ function calculateScores(QUESTION_AREAS, ANSWERS, analysisMode = 'advanced') {
 			if (customScore !== null) {
 				score = customScore;
 				ruleDetail = { type: q.method, params, input: Number(val), output: score };
-			} else if (q.method === 'threshold' && (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist')) {
+			} else if (q.type === 'csv_dropdown' && params && params.source) {
+    // Handle CSV dropdown: map selected label to difficulty (1‑5) and score proportionally
+    const sourceArr = Array.isArray(window[params.source]) ? window[params.source] : [];
+    const labelField = params.labelField || 'label';
+    const valueField = params.valueField || 'value';
+    const match = sourceArr.find(item => String(item[labelField]) === String(val));
+    if (match) {
+        const diff = Number(match[valueField]);
+        if (Number.isFinite(diff) && diff >= 0) {
+            // Normalize 1‑5 → 0‑100 (5 → 100)
+            score = Math.max(0, Math.min(100, (diff / 5) * 100));
+            ruleDetail = { type: 'csv_dropdown', params, input: val, difficulty: diff, output: score };
+        } else {
+            score = 0;
+            ruleDetail = { type: 'csv_dropdown', params, input: val, error: 'invalid difficulty' };
+        }
+    } else {
+        score = 0;
+        ruleDetail = { type: 'csv_dropdown', params, input: val, error: 'no match' };
+    }
+} else if (q.method === 'threshold' && (q.type === 'number' || q.type === 'chem_lookup' || q.type === 'column_selector' || q.type === 'equipment_dropdown' || q.type === 'equipment_checklist')) {
 				const activeRanges = Array.isArray(params.ranges)
 					? params.ranges
 					: params[analysisMode] && Array.isArray(params[analysisMode].ranges)

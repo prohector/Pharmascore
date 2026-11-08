@@ -41,8 +41,8 @@
     ],
     ANALYTICAL_PERFORMANCE_SUBTABS: [
       { title: 'System Suitability', questionIds: ['perf8', 'perf9', 'perf10', 'perf2'] },
-      { title: 'Method validation', questionIds: ['perf0', 'perf7', 'perf1', 'perf3', 'perf5', 'perf12'] },
-      { title: 'Matrix performance', questionIds: ['sample_analysis_results_heading', 'sample_analysis_results', 'perf13', 'perf14', 'perf15', 'perf17'] }
+      { title: 'Method validation', questionIds: ['perf0', 'perf7', 'perf1', 'perf3', 'perf4', 'perf5', 'perf6', 'perf11', 'perf12'] },
+      { title: 'Matrix performance', questionIds: ['sample_analysis_results_heading', 'sample_analysis_results', 'perf13', 'perf14', 'perf17'] }
     ],
     ANALYTICAL_CONSUMABLES_SUBTABS: [
       { title: 'Section 1: Mobile phase', questionIds: ['econ_rec1'] },

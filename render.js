@@ -1,3 +1,4 @@
+import { escapeHtml } from './utils/escape.js';
 (function () {
   function isFixedCostsArea(area) {
     return !!area && area.title === 'Equipment Fixed Costs';
@@ -79,7 +80,7 @@
       }
     }
     if (stepsEl) {
-      stepsEl.innerHTML = guidance.steps.map(step => `<li>${step}</li>`).join('');
+      stepsEl.innerHTML = guidance.steps.map(step => `\u003cli\u003e${escapeHtml(step)}\u003c/li\u003e`).join('');
       if (typeof window.renderMathInElement === 'function') {
         window.renderMathInElement(stepsEl, {
           delimiters: [
@@ -439,7 +440,6 @@
   function getQuestionInfoText(q) {
     if (!q) return '';
     if (q.id === 'perf14') return String.raw`$$\text{Matrix Effect (\%)} = \left( \frac{\text{Peak area (post-extraction spiked sample)}}{\text{Peak area (neat standard)}} - 1 \right) \times 100$$`;
-    if (q.id === 'perf15') return String.raw`$$\text{Process efficiency (\%)} = \text{matrix recovery} \times \text{matrix effect}.$$`;
     return '';
   }
 
