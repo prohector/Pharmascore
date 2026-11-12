@@ -2,6 +2,7 @@ const WORKER_URL = 'https://misty-waterfall-054f.up1107677.workers.dev';
 const MAX_SESSION_QUERIES = 20;
 const MAX_MINUTE_QUERIES = 5;
 const MINUTE_MS = 60 * 1000;
+const TURNSTILE_TIMEOUT_MS = 120 * 1000;
 
 // Cloudflare Turnstile Site Key.
 // Can be customized via window.TURNSTILE_SITE_KEY or by replacing the fallback below.
@@ -15,66 +16,86 @@ export function getTurnstileToken() {
   if (turnstilePendingPromise) return turnstilePendingPromise;
 
   turnstilePendingPromise = new Promise((resolve) => {
-    // If turnstile script is not loaded or blocked, resolve gracefully with null
-    if (typeof window.turnstile === 'undefined') {
-      console.warn('[PharmaScore] Cloudflare Turnstile script is not loaded.');
-      turnstilePendingPromise = null;
-      resolve(null);
-      return;
-    }
-
+    let settled = false;
+    let timeoutId;
     const modal = document.getElementById('turnstile-modal');
     const container = document.getElementById('turnstile-widget');
     const errorEl = document.getElementById('turnstile-error');
     const cancelBtn = document.getElementById('turnstile-cancel-btn');
+    const finish = (token) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      if (modal) modal.classList.add('hidden');
+      turnstilePendingPromise = null;
+      resolve(token);
+    };
+
+    // If turnstile script is not loaded or blocked, resolve gracefully with null
+    if (typeof window.turnstile === 'undefined') {
+      console.warn('[PharmaScore] Cloudflare Turnstile script is not loaded.');
+      finish(null);
+      return;
+    }
 
     if (errorEl) {
       errorEl.textContent = '';
       errorEl.classList.add('hidden');
     }
 
-    function cleanup() {
-      if (modal) modal.classList.add('hidden');
-      turnstilePendingPromise = null;
-    }
-
     if (modal) modal.classList.remove('hidden');
 
     if (cancelBtn) {
       cancelBtn.onclick = () => {
-        cleanup();
-        resolve(null);
+        finish(null);
       };
     }
 
     try {
       if (turnstileWidgetId !== null) {
-        window.turnstile.reset(turnstileWidgetId);
-      } else if (container) {
+        try {
+          window.turnstile.remove(turnstileWidgetId);
+        } catch {
+          // Some Turnstile versions do not expose remove(); rendering replaces the widget.
+        }
+        turnstileWidgetId = null;
+      }
+      if (container) {
+        container.replaceChildren();
         turnstileWidgetId = window.turnstile.render(container, {
           sitekey: TURNSTILE_SITE_KEY,
           theme: 'light',
           callback: (token) => {
-            cleanup();
-            resolve(token);
+            finish(token);
           },
           'error-callback': () => {
             if (errorEl) {
               errorEl.textContent = 'Security check encountered an error. Please retry.';
               errorEl.classList.remove('hidden');
             }
+            finish(null);
           },
           'expired-callback': () => {
-            if (turnstileWidgetId !== null) {
-              window.turnstile.reset(turnstileWidgetId);
+            if (errorEl) {
+              errorEl.textContent = 'The security check expired. Please retry.';
+              errorEl.classList.remove('hidden');
             }
+            finish(null);
           }
         });
+        timeoutId = setTimeout(() => {
+          if (errorEl) {
+            errorEl.textContent = 'The security check timed out. Please retry.';
+            errorEl.classList.remove('hidden');
+          }
+          finish(null);
+        }, TURNSTILE_TIMEOUT_MS);
+      } else {
+        finish(null);
       }
     } catch (err) {
       console.warn('[PharmaScore] Turnstile render error:', err);
-      cleanup();
-      resolve(null);
+      finish(null);
     }
   });
 
@@ -84,8 +105,13 @@ export function getTurnstileToken() {
 export function resetTurnstile() {
   if (typeof window.turnstile !== 'undefined' && turnstileWidgetId !== null) {
     try {
-      window.turnstile.reset(turnstileWidgetId);
+      if (typeof window.turnstile.remove === 'function') {
+        window.turnstile.remove(turnstileWidgetId);
+      } else {
+        window.turnstile.reset(turnstileWidgetId);
+      }
     } catch {}
+    turnstileWidgetId = null;
   }
 }
 
@@ -145,11 +171,14 @@ export async function lookupChemicalPrice(name, country = 'US', unit = 'g', ques
   }
 }
 
-export async function requestQuestionnaireFill(pdfText, questionnaire) {
+export async function requestQuestionnaireFill(pdfText, questionnaire, options = {}) {
   const text = String(pdfText || '').trim();
   if (!text) return { success: false, error: 'No selectable PDF text was found.' };
-  const limit = checkAndRecordQuery();
-  if (!limit.allowed) return { success: false, error: limit.error, rateLimited: true };
+  const internalVerification = options.internalVerification === true;
+  if (!internalVerification) {
+    const limit = checkAndRecordQuery();
+    if (!limit.allowed) return { success: false, error: limit.error, rateLimited: true };
+  }
 
   const turnstileToken = await getTurnstileToken();
   if (!turnstileToken) {
@@ -160,7 +189,16 @@ export async function requestQuestionnaireFill(pdfText, questionnaire) {
     const response = await fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'fill_questionnaire', pdfText: text.slice(0, 120000), questionnaire, turnstileToken })
+      body: JSON.stringify({
+        action: 'fill_questionnaire',
+        pdfText: text.slice(0, 120000),
+        questionnaire,
+        turnstileToken,
+        ...(internalVerification ? {
+          verificationMode: 'internal',
+          appSharedSecret: String(options.appSharedSecret || '')
+        } : {})
+      })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.success) return { success: false, error: data.error || `Questionnaire fill failed (${response.status}).` };

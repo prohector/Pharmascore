@@ -25,3 +25,4 @@ DAILY_CAP = 500
 # Secrets to set via CLI:
 #   npx wrangler secret put MistralAPI
 #   npx wrangler secret put TURNSTILE_SECRET_KEY
+#   npx wrangler secret put APP_SHARED_SECRET

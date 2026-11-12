@@ -58,6 +58,7 @@
 		<div class="analysis-gate-actions">
 			<button id="routine-analysis-btn" type="button" class="analysis-choice-btn">Routine analysis</button>
 			<button id="advanced-analysis-btn" type="button" class="analysis-choice-btn">Advanced analysis</button>
+			<button id="csv-verify-open-btn" type="button" class="analysis-choice-btn secondary hidden">Verification menu</button>
 		</div>
 		<label class="analysis-autofill-option" for="analysis-pdf-autofill">
 			<input id="analysis-pdf-autofill" type="checkbox">
@@ -65,6 +66,35 @@
 		</label>
 		<input id="analysis-pdf-file" type="file" accept="application/pdf" class="hidden">
 		<div id="analysis-pdf-status" class="analysis-pdf-status" aria-live="polite"></div>
+	</section>
+	<section id="csv-verify-panel" class="csv-verify-panel hidden" aria-labelledby="csv-verify-title">
+		<div class="csv-verify-header">
+			<div>
+				<h2 id="csv-verify-title">Questionnaire verification</h2>
+				<p>Run the PDF autofill against the questions currently loaded from the CSV files.</p>
+			</div>
+			<button id="csv-verify-close-btn" type="button" class="csv-verify-close">Close</button>
+		</div>
+		<label for="csv-verify-files">PDF files</label>
+		<input id="csv-verify-files" type="file" accept="application/pdf" multiple>
+		<div class="csv-verify-options">
+			<label for="csv-verify-runs">Runs per file
+				<input id="csv-verify-runs" type="number" min="1" max="5" value="1">
+			</label>
+			<label for="csv-verify-delay">Delay between runs (seconds)
+				<input id="csv-verify-delay" type="number" min="0" max="120" value="0">
+			</label>
+		</div>
+		<label for="csv-verify-secret">Internal verification secret
+			<input id="csv-verify-secret" type="password" autocomplete="off">
+		</label>
+		<p class="csv-verify-note">Use the APP_SHARED_SECRET configured on the Worker. Requests still require the browser security check.</p>
+		<div class="csv-verify-actions">
+			<button id="csv-verify-start-btn" type="button" class="analysis-choice-btn">Start verification</button>
+			<button id="csv-verify-export-btn" type="button" class="results-export-btn" disabled>Export CSV</button>
+		</div>
+		<div id="csv-verify-status" class="csv-verify-status" aria-live="polite"></div>
+		<div id="csv-verify-results" class="csv-verify-results"></div>
 	</section>
 	<!-- Loading/Error UI -->
 	<div id="loading-message" class="hidden">Loading questionnaire...</div>
@@ -141,6 +171,7 @@
 	<script src="navigation.js?v=20261106a"></script>
 	<script src="questionnaire-json.js?v=20261106a"></script>
 	<script src="pdf-reader.js?v=20261106a"></script>
+	<script src="csv-verify.js?v=20261110a"></script>
 	<script src="scorer.js?v=20261106a"></script>
 	<script src="chart.js?v=20261106a"></script>
 </body>

@@ -2319,10 +2319,4 @@ import { escapeHtml } from './utils/escape.js';
     debugAutofillAllQuestions: { value: debugAutofillAllQuestions, configurable: true }
   });
 
-  window.getColumnSelectorIds = getColumnSelectorIds;
-  window.getEquipmentDropdownIds = getEquipmentDropdownIds;
-  window.getRecurringCostIds = getRecurringCostIds;
-  window.getRecurringMix = getRecurringMix;
-  window.parseRecurringEntries = parseRecurringEntries;
-  window.getAuxiliaryEquipmentOptions = getAuxiliaryEquipmentOptions;
 }());

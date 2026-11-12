@@ -69,10 +69,18 @@ export default {
       return corsResponse(jsonResponse({ success: false, error: turnstileCheck.error }, 403), matchedOrigin);
     }
 
-    // 5. Rate limit per IP (5 requests per minute)
-    const rateLimit = await checkRateLimit(env, clientIp);
-    if (!rateLimit.allowed) {
-      return corsResponse(jsonResponse({ success: false, error: rateLimit.error, rateLimited: true }, 429), matchedOrigin);
+    const internalVerification = body.action === 'fill_questionnaire'
+      && body.verificationMode === 'internal';
+    if (internalVerification && !isValidInternalVerification(body, env)) {
+      return corsResponse(jsonResponse({ success: false, error: 'Internal verification authorization failed.' }, 403), matchedOrigin);
+    }
+
+    // 5. Rate limit per IP (5 requests per minute), except authorized internal verification.
+    if (!internalVerification) {
+      const rateLimit = await checkRateLimit(env, clientIp);
+      if (!rateLimit.allowed) {
+        return corsResponse(jsonResponse({ success: false, error: rateLimit.error, rateLimited: true }, 429), matchedOrigin);
+      }
     }
 
     // 6. Daily cap on total calls
@@ -112,6 +120,16 @@ export default {
     }
   }
 };
+
+function isValidInternalVerification(body, env) {
+  const configuredSecret = typeof env?.APP_SHARED_SECRET === 'string'
+    ? env.APP_SHARED_SECRET.trim()
+    : '';
+  const suppliedSecret = typeof body?.appSharedSecret === 'string'
+    ? body.appSharedSecret.trim()
+    : '';
+  return Boolean(configuredSecret && suppliedSecret && configuredSecret === suppliedSecret);
+}
 
 // --- Origin Matching & CORS Helper ---
 function cleanOrigin(str) {
